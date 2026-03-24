@@ -1,78 +1,76 @@
-## Record: 11L Eval-Only XSA + TrigramHash + ValueResidual + GradQuant + AdamW TTT (Full Stack v5.1)
+## Record: v6.0 Moonshot — Dual TTT + Full Architecture Stack
 
-**Target: <1.0829 val_bpb** | 8xH100 SXM, 600s train + 600s eval
+**Target: <1.03 val_bpb** (stretch: <0.99) | 8xH100 SXM, 600s train + 600s eval
 
-### Key Addition Over PR #486 (SOTA 1.0887)
+### Novel Contributions
 
-Built on PR #486's base (TrigramHash + ValueResidual + GradQuant + Cosine TTT 30ep), this submission adds:
+1. **Two independent TTT methods** (user chooses via config):
+   - **In-Place TTT** (ICLR 2026 Oral): Updates MLP output projections per-document using NTP loss with apply-then-update ordering. Targets completely different parameters than LoRA TTT.
+   - **Per-document LoRA TTT** (PR #548): Rank-8 LoRA on Q/V/LM head with surprise-gated training (Titans-inspired — only top-K% highest-loss tokens get gradient updates).
 
-**XSA (Exclusive Self-Attention) at eval time only on all 11 layers.** Removes self-position contribution from attention output, forcing context-only prediction. Applied ONLY during eval/TTT — training proceeds identically to PR #486.
+2. **Full GPTQ** (Hessian-aware quantization): 256-sample calibration, per-layer Hessian H=X^TX, column-wise int6 with Cholesky error compensation. 31% quantization gap reduction over naive int6.
 
-XSA implementation: projects attention output onto normalized value subspace and subtracts, GQA-aware. No additional parameters. The model trains normally, then XSA improves eval predictions by forcing context-dependent outputs.
+3. **LeakyReLU(0.5)^2 activation**: Drop-in replacement for relu^2 that preserves gradients through negative activations. -0.0015 bpb proven by 4+ teams.
 
-### Stress Test Findings (pre-run)
+4. **Eval-only XSA** on all 11 layers: Exclusive Self-Attention removes self-position contribution during eval, forcing context-only prediction. Training proceeds without XSA to avoid regression.
 
-1. **SWA_EVERY is dead code** when EMA is enabled (line 1681 guard: `not args.ema_enabled`). Reverted to match PR #486 defaults. EMA (decay=0.997) is the active weight averaging method.
-2. **XSA moved to eval-only** to avoid training regression risk. Training model uses xsa_last_n=0, eval model uses xsa_last_n=11.
-3. **Flash Attention + GQA + XSA**: Verified compatible. XSA's _xsa_efficient handles GQA grouping correctly.
-4. **ValueResidual + XSA interaction**: v0 blending happens before attention; XSA subtracts post-attention. No conflict.
-5. **Artifact size**: Unchanged from PR #486 (~15.34MB). XSA adds zero parameters.
-6. **Time budget**: XSA adds <1s to eval (~0.1ms × 11 layers × ~500 batches). Safe within 600s.
-
-### Changes from PR #486 (actual diff, 3 lines)
-
-```diff
-- num_layers = int(os.environ.get("NUM_LAYERS", 9))
-+ num_layers = int(os.environ.get("NUM_LAYERS", 11))
-
-- xsa_last_n = int(os.environ.get("XSA_LAST_N", 0))
-+ xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))
-
-  # Training model: xsa_last_n=0 (eval-only XSA)
-- xsa_last_n=args.xsa_last_n,
-+ xsa_last_n=0,  # Train WITHOUT XSA
-```
-
-### Full Architecture
+### Architecture (from PR #486 base)
 
 - 11 layers, 512 dim, 8 heads / 4 KV heads (GQA)
-- 3x MLP relu-squared + SmearGate + BigramHash(4096) + TrigramHash(4096)
+- 3x MLP LeakyReLU(0.5)^2 + SmearGate + BigramHash(4096) + TrigramHash(4096)
 - Value Residual (ResFormer) across all layers
-- XSA on all 11 layers (eval only)
-- EMA (decay=0.997), OrthoInit
+- GradQuant: gradient-guided adaptive Int5/6/7
 - Partial RoPE (16/64 dims), LN Scale (1/sqrt(layer+1))
-- GradQuant: adaptive Int5/6/7 + zstd-22
+- EMA (decay=0.997), OrthoInit
+- Full GPTQ + zstd-22
 
-### TTT Configuration
-
-- AdamW (lr=0.0005, weight_decay=0.0), 30 epochs, cosine decay
-- Per-layer LR: MLP output 3x, MLP input 0.5x, rest 1x
-- All blocks unfrozen (freeze_blocks=0)
-- Time: ~465s of 600s eval budget
-
-### Hypothesis
-
-XSA at eval time forces the model to rely on context tokens rather than self-position when making predictions. This should improve perplexity without any training cost, because:
-- The model already learned to use context during training (via attention to other positions)
-- Removing the self-position "shortcut" during eval forces higher-quality contextual predictions
-- Complementary to TTT (which adapts weights to the specific validation context)
-
-Expected improvement: -0.002 to -0.005 bpb from eval-only XSA.
-
-### Run Command
+### TTT Configuration (LoRA mode)
 
 ```bash
-SEED=42 torchrun --standalone --nproc_per_node=8 train_gpt.py
+# LoRA TTT (default: INPLACE_TTT_ENABLED=0)
+TTT_LORA_LR=0.01          # LoRA optimizer LR
+TTT_LORA_RANK=8            # LoRA rank
+TTT_EPOCHS=20              # Epochs per document
+TTT_BATCH_SEQS=32          # Documents per GPU batch
+TTT_SURPRISE_TOPK=0.5      # Train on top 50% highest-loss tokens
 ```
 
-All hyperparameters are set as defaults in train_gpt.py.
+### TTT Configuration (In-Place mode)
+
+```bash
+# In-Place TTT (INPLACE_TTT_ENABLED=1)
+INPLACE_TTT_LR=0.001       # MLP proj update LR
+INPLACE_TTT_CHUNK=256       # Chunk size for apply-then-update
+```
+
+### Run Commands
+
+```bash
+# LoRA TTT (proven, batched)
+INPLACE_TTT_ENABLED=0 SEED=42 torchrun --standalone --nproc_per_node=8 train_gpt.py
+
+# In-Place TTT (novel, per-document MLP adaptation)
+INPLACE_TTT_ENABLED=1 SEED=42 torchrun --standalone --nproc_per_node=8 train_gpt.py
+```
+
+### Experiment Plan
+
+1. Reproduce PR #486 baseline (pre-TTT ~1.11, post-LoRA-TTT ~1.09)
+2. Compare LoRA TTT vs In-Place TTT on our architecture
+3. Tune surprise-gating threshold: {25%, 50%, 75%}
+4. Tune In-Place TTT LR: {0.0005, 0.001, 0.002}
+5. 3-seed validation with best config
 
 ### Results
 
 _Pending — needs 8xH100 validation runs._
 
-### Ablation Plan
+### Provenance
 
-1. PR #486 base (XSA_LAST_N=0): reproduces 1.0887
-2. + Eval-only XSA (XSA_LAST_N=11, training xsa=0): our submission
-3. + Training XSA (both train and eval xsa=11): compare
+- Architecture: PR #486 (ndokutovich)
+- LoRA TTT: PR #548 (LoquiAuris)
+- In-Place TTT: "In-Place Test-Time Training" (ICLR 2026 Oral, Feng et al.)
+- Surprise gating: Inspired by "Titans: Learning to Memorize at Test Time" (NeurIPS 2025)
+- LeakyReLU^2: PR #493 (parinzee)
+- Full GPTQ: PR #535 (raahilshah)
+- XSA: PR #503 (EthanYangTW)
