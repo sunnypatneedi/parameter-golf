@@ -2257,13 +2257,10 @@ def main() -> None:
         grad_sens = {name: val / count for name, val in main._grad_sens.items()}
         log0(f"grad_quant: adaptive precision for {len(grad_sens)} tensors based on gradient sensitivity")
 
-    # Full GPTQ: Hessian-aware quantization (31% quant gap reduction)
+    # GPTQ disabled — Run 1 showed 0.18 bpb quant penalty (vs ~0.003 expected).
+    # Root cause: GPTQ implementation may have bugs. Use standard quantization for now.
+    # TODO: Debug GPTQ separately and re-enable when verified.
     gptq_hessians = None
-    if torch.cuda.is_available():
-        t_gptq = time.perf_counter()
-        log0("gptq:calibrating...")
-        gptq_hessians = gptq_calibrate(base_model, args.train_files, device, n_samples=256, seq_len=args.train_seq_len)
-        log0(f"gptq:calibrated {len(gptq_hessians)} layers in {time.perf_counter()-t_gptq:.1f}s")
 
     quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"}, grad_sensitivity=grad_sens, hessians=gptq_hessians)
     quant_buf = io.BytesIO()
