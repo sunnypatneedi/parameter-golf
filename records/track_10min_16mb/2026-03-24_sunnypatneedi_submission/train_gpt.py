@@ -1522,6 +1522,9 @@ def main() -> None:
         ttt_adapt(args, eval_model, device, val_tokens, rank, world_size)
         torch.cuda.synchronize()
         log0(f"ttt:total_time {1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
+    # Reset torch.compile cache after TTT weight modifications to prevent
+    # "tensor does not have a device" crash on subsequent seeds (PR #548 fix)
+    torch._dynamo.reset()
     sw_seq_len = effective_eval_seq_len
     if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
         torch.cuda.synchronize()
