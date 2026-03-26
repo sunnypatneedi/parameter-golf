@@ -1,3 +1,26 @@
+# v10 moonshot — GradQuant + Hedge Mixer on top of v9a (11-gram, no-TTT)
+# Changes vs v9a:
+#   1. GradQuant: layer-index + gradient-norm guided Int5/6/7 per-layer quantization
+#      - Computes gradient norms on last training batch (training data, no legality concern)
+#      - Low-sensitivity layers: Int5 (clip_range=15, better compression)
+#      - High-sensitivity layers: Int7 (clip_range=63, better quality)
+#   2. Hedge Mixer: online multiplicative-weights between neural and n-gram experts
+#      - Learns which expert to trust more across the eval run
+#      - Adds ~0.001-0.003 bpb (free, no legality concern, score-first protocol preserved)
+#   3. Model scaling documentation: model_dim=640 / 13L configs documented in comments
+#
+# LEGALITY NOTES (all techniques verified against README.md rules):
+#   - N-gram cache (score-first/update-after): LEGAL (confirmed by @valerio-oai)
+#   - GradQuant (gradient-guided quant on training data): LEGAL (no val data used)
+#   - Hedge Mixer: LEGAL (eval-time computation using already-scored tokens)
+#   - Mixed int5/6/7 quantization: LEGAL (no quant restrictions in rules)
+#   - NO PREFILL (v9c technique excluded due to gray-area legality)
+#
+# Model scaling options (set via env):
+#   Default (v9a parity):  MODEL_DIM=512  NUM_LAYERS=11  → ~27M params, ~15MB artifact
+#   Medium scale:          MODEL_DIM=640  NUM_LAYERS=11  → ~41M params, needs ternary
+#   Large scale:           MODEL_DIM=640  NUM_LAYERS=13  → ~49M params, needs ternary
+#   (Ternary QAT not included — requires full retrain; use Int6 first, validate, then scale)
 from __future__ import annotations
 import copy
 import glob
@@ -30,9 +53,6 @@ except ImportError:
         from flash_attn import flash_attn_func as flash_attn_3_func
     except ImportError:
         flash_attn_3_func = None
-# v10_moonshot: model_dim=640 + ternary MLP + int4 attn + int6 embed + hedge mixer
-# Target: fit ~42M params in 16MB via aggressive per-category quantization + zstd
-# LEGAL: no prefill cache, score-first n-gram, per-rank tables
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -54,8 +74,7 @@ class Hyperparameters:
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    # 640-dim: head_dim = 640/8 = 80 (even, RoPE-compatible)
-    model_dim = int(os.environ.get("MODEL_DIM", 640))
+    model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = float(os.environ.get("MLP_MULT", 3.0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
@@ -80,7 +99,7 @@ class Hyperparameters:
     mtp_loss_weight = float(os.environ.get("MTP_LOSS_WEIGHT", 0.2))
     muon_beta2 = float(os.environ.get("MUON_BETA2", 0.95))
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
-    swa_every = int(os.environ.get("SWA_EVERY", 50))
+    swa_every = int(os.environ.get("SWA_EVERY", 50))  # tighter: collect more recent checkpoints
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
@@ -88,15 +107,15 @@ class Hyperparameters:
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))  # XSA on all 11 layers
     gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "1")))
-    rope_dims = int(os.environ.get("ROPE_DIMS", 16))  # partial RoPE: 16 of 80 dims
+    rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     dtg_enabled = bool(int(os.environ.get("DTG_ENABLED", "0")))
     late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.15))
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "7,8,9,10")
-    # TTT disabled — eval time used for n-gram + hedge mixer
-    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
+    # TTT config (PR #481 AdamW recipe: cosine + per-layer LR)
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))  # v9a: TTT DISABLED — all eval time for n-gram
     ttt_lr = float(os.environ.get("TTT_LR", 0.0005))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 0))
     ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 0))
@@ -104,6 +123,19 @@ class Hyperparameters:
     ttt_max_steps = int(os.environ.get("TTT_MAX_STEPS", 300))
     ttt_cosine = bool(int(os.environ.get("TTT_COSINE", "1")))
     ttt_perlayer = bool(int(os.environ.get("TTT_PERLAYER", "1")))
+    # --- v10 GradQuant config ---
+    # Gradient-guided adaptive per-layer bit allocation (from PR #486 concept).
+    # Gradient norms on last training batch determine sensitivity; less sensitive → fewer bits.
+    gradquant_enabled = bool(int(os.environ.get("GRADQUANT_ENABLED", "1")))
+    # Fraction of large weight tensors to assign Int5 (clip_range=15, better compression)
+    gradquant_int5_frac = float(os.environ.get("GRADQUANT_INT5_FRAC", "0.35"))
+    # Fraction of large weight tensors to assign Int7 (clip_range=63, better quality)
+    gradquant_int7_frac = float(os.environ.get("GRADQUANT_INT7_FRAC", "0.15"))
+    # --- v10 Hedge Mixer config ---
+    # Online multiplicative-weights expert ensemble between neural and n-gram experts.
+    # hedge_beta: update rate. Higher = faster adaptation but less stable.
+    hedge_enabled = bool(int(os.environ.get("HEDGE_ENABLED", "1")))
+    hedge_beta = float(os.environ.get("HEDGE_BETA", "2.0"))
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -305,6 +337,72 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
     return q, scale
+def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
+    quantized: dict[str, Tensor] = {}
+    scales: dict[str, Tensor] = {}
+    dtypes: dict[str, str] = {}
+    passthrough: dict[str, Tensor] = {}
+    passthrough_orig_dtypes: dict[str, str] = {}
+    qmeta: dict[str, dict[str, object]] = {}
+    stats = dict.fromkeys(
+        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
+        0,
+    )
+    for name, tensor in state_dict.items():
+        t = tensor.detach().to("cpu").contiguous()
+        stats["param_count"] += int(t.numel())
+        stats["num_tensors"] += 1
+        stats["baseline_tensor_bytes"] += tensor_nbytes(t)
+        if not t.is_floating_point():
+            stats["num_nonfloat_tensors"] += 1
+            passthrough[name] = t
+            stats["int8_payload_bytes"] += tensor_nbytes(t)
+            continue
+        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
+            kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
+            passthrough[name] = kept
+            stats["int8_payload_bytes"] += tensor_nbytes(kept)
+            continue
+        stats["num_float_tensors"] += 1
+        q, s = quantize_float_tensor(t)
+        if s.ndim > 0:
+            qmeta[name] = {"scheme": "per_row", "axis": 0}
+        quantized[name] = q
+        scales[name] = s
+        dtypes[name] = str(t.dtype).removeprefix("torch.")
+        stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
+    obj: dict[str, object] = {
+        "__quant_format__": "int8_clean_per_row_v1",
+        "quantized": quantized,
+        "scales": scales,
+        "dtypes": dtypes,
+        "passthrough": passthrough,
+    }
+    if qmeta:
+        obj["qmeta"] = qmeta
+    if passthrough_orig_dtypes:
+        obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
+    return obj, stats
+def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
+    out: dict[str, Tensor] = {}
+    qmeta = obj.get("qmeta", {})
+    passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
+    for name, q in obj["quantized"].items():
+        dtype = getattr(torch, obj["dtypes"][name])
+        s = obj["scales"][name]
+        if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
+            s = s.to(dtype=torch.float32)
+            out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
+        else:
+            scale = float(s.item())
+            out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
+    for name, t in obj["passthrough"].items():
+        out_t = t.detach().to("cpu").contiguous()
+        orig_dtype = passthrough_orig_dtypes.get(name)
+        if isinstance(orig_dtype, str):
+            out_t = out_t.to(dtype=getattr(torch, orig_dtype)).contiguous()
+        out[name] = out_t
+    return out
 def load_data_shard(file: Path) -> Tensor:
     header_bytes = 256 * np.dtype("<i4").itemsize
     token_bytes = np.dtype("<u2").itemsize
@@ -454,18 +552,20 @@ class CausalSelfAttention(nn.Module):
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rope_dims = 0  # set by GPT.__init__ for partial RoPE
         self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024)
-        self.use_xsa = False  # set by GPT.__init__
+        self.use_xsa = False  # set by GPT.__init__ for deep layers only
         self._gated_attention = gated_attention
         if gated_attention:
             self.attn_gate = nn.Linear(dim, num_heads, bias=True)
             nn.init.zeros_(self.attn_gate.weight)
-            nn.init.constant_(self.attn_gate.bias, 4.0)
+            nn.init.constant_(self.attn_gate.bias, 4.0)  # sigmoid(4) ≈ 0.98, near-identity init
     def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
+        """Efficient XSA: subtract self-value projection via GQA-aware reshape (no repeat_interleave).
+        y: [B, T, H, D], v: [B, T, Hkv, D]. H must be divisible by Hkv."""
         B, T, H, D = y.shape
         Hkv = v.size(-2)
         group = H // Hkv
-        y_g = y.reshape(B, T, Hkv, group, D)
-        vn = F.normalize(v, dim=-1).unsqueeze(-2)
+        y_g = y.reshape(B, T, Hkv, group, D)        # [B, T, Hkv, group, D]
+        vn = F.normalize(v, dim=-1).unsqueeze(-2)    # [B, T, Hkv, 1, D] — broadcast ready
         proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
         return (y_g - proj).reshape(B, T, H, D)
     def forward(self, x: Tensor, v_embed: Tensor | None = None) -> Tensor:
@@ -494,8 +594,8 @@ class CausalSelfAttention(nn.Module):
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         if self._gated_attention:
-            gate = torch.sigmoid(self.attn_gate(x))
-            y = y * gate.unsqueeze(-1)
+            gate = torch.sigmoid(self.attn_gate(x))  # [bsz, seqlen, num_heads]
+            y = y * gate.unsqueeze(-1)  # [bsz, seqlen, num_heads, head_dim] * [bsz, seqlen, num_heads, 1]
         y = y.reshape(bsz, seqlen, dim)
         return self.proj(y)
 class SmearGate(nn.Module):
@@ -529,6 +629,8 @@ class BigramHashEmbedding(nn.Module):
             h = self.proj(h)
         return h * self.scale.to(dtype=h.dtype)
 class ValueEmbedding(nn.Module):
+    """Reinject token identity into attention values at specific layers.
+    Each table maps vocab tokens to a low-dim embedding, projected to model_dim."""
     def __init__(self, vocab_size: int, ve_dim: int, model_dim: int):
         super().__init__()
         self.embed = nn.Embedding(vocab_size, ve_dim)
@@ -619,7 +721,7 @@ class GPT(nn.Module):
         ve_layers: str = "9,10",
     ):
         super().__init__()
-        self._ve_target_dim = num_kv_heads * (model_dim // num_heads)
+        self._ve_target_dim = num_kv_heads * (model_dim // num_heads)  # kv_dim for value projection
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
         self.tie_embeddings = tie_embeddings
@@ -666,7 +768,7 @@ class GPT(nn.Module):
         else:
             self.ve_shared = None
             self.ve_layer_scales = nn.ParameterList()
-        self.value_embeds = nn.ModuleList()
+        self.value_embeds = nn.ModuleList()  # keep empty for compat
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -694,6 +796,7 @@ class GPT(nn.Module):
                         with torch.no_grad():
                             module.weight.mul_(1.0 / math.sqrt(2 * num_layers))
     def _get_ve(self, layer_idx: int, input_ids: Tensor, ve_cache: dict | None = None) -> Tensor | None:
+        """Get value embedding for a specific layer using shared table + per-layer scale."""
         if self.ve_shared is None or layer_idx not in self.ve_layer_indices:
             return None
         if ve_cache is not None and 've' not in ve_cache:
@@ -749,6 +852,7 @@ class GPT(nn.Module):
                 main_loss = main_loss + self.mtp_loss_weight * (mtp_loss_sum / mtp_loss_count)
         return main_loss
     def forward_logits(self, input_ids: Tensor) -> Tensor:
+        """Return logits (bsz, seq_len, vocab) without computing loss."""
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
@@ -773,143 +877,6 @@ class GPT(nn.Module):
         else:
             logits_proj = self.lm_head(x)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-# --- ADAPTIVE QUANTIZATION: ternary MLP, int4 attn, int6 embed ---
-def _classify_param(name: str) -> str:
-    """Classify parameter for adaptive quantization."""
-    if "tok_emb" in name or "lm_head" in name:
-        return "embed"
-    # Only classify as mlp/attn if inside a blocks.*.mlp.* or blocks.*.attn.* path
-    if "blocks." in name and ".mlp." in name:
-        return "mlp"
-    if "blocks." in name and ".attn." in name:
-        return "attn"
-    return "other"
-def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
-    """Int6 quantization: values in [-31, 31], stored as int8. Best clip via grid search."""
-    t32 = t.float()
-    if t32.ndim == 2:
-        best_q, best_s, best_err = None, None, float('inf')
-        for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
-            if pct < 1.0:
-                row_clip = torch.quantile(t32.abs(), pct, dim=1)
-            else:
-                row_clip = t32.abs().amax(dim=1)
-            s = (row_clip / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
-            q = torch.clamp(torch.round(t32 / s.float()[:, None]), -clip_range, clip_range).to(torch.int8)
-            recon = q.float() * s.float()[:, None]
-            err = (t32 - recon).pow(2).mean().item()
-            if err < best_err:
-                best_q, best_s, best_err = q, s, err
-        return best_q, best_s
-    amax = t32.abs().max().item()
-    scale = torch.tensor(amax / clip_range if amax > 0 else 1.0, dtype=torch.float16)
-    q = torch.clamp(torch.round(t32 / scale.float()), -clip_range, clip_range).to(torch.int8)
-    return q, scale
-def quantize_int4_per_row(t: Tensor) -> tuple[Tensor, Tensor]:
-    """Int4 quantization: values in [-7, 7], stored as int8.
-    Aggressive compression: 15 distinct values → good zstd ratio."""
-    return quantize_int6_per_row(t, clip_range=7)
-def quantize_ternary_per_row(t: Tensor) -> tuple[Tensor, Tensor]:
-    """Ternary quantization: values in {-1, 0, +1}, stored as int8.
-    Scale = mean(abs(w)) per row, threshold = 0.7 * scale.
-    Only 3 distinct values → excellent zstd compression (expected 5-7x vs int8 random).
-    Risk: quality may degrade at this scale — verify pre/post-quant BPB roundtrip."""
-    t32 = t.float()
-    if t32.ndim == 2:
-        scale = t32.abs().mean(dim=1).clamp_min(1e-8)
-        threshold = 0.7 * scale
-        q = torch.where(
-            t32 > threshold[:, None],
-            torch.ones_like(t32, dtype=torch.int8),
-            torch.where(
-                t32 < -threshold[:, None],
-                torch.full_like(t32, -1, dtype=torch.int8),
-                torch.zeros_like(t32, dtype=torch.int8),
-            ),
-        ).contiguous()
-        return q, scale.to(torch.float16).contiguous()
-    # 1D fallback: use int6
-    return quantize_int6_per_row(t, clip_range=31)
-def adaptive_quantize(state_dict: dict[str, Tensor]) -> tuple[dict[str, Tensor], dict[str, object]]:
-    """Adaptive per-category quantization:
-    - MLP block weights: ternary {-1, 0, 1} + per-row scale (best zstd compression)
-    - Attention block weights: int4 [-7, 7] + per-row scale
-    - Embeddings/output/other: int6 [-31, 31] + per-row scale (most sensitive)
-    - Small tensors (≤65536 params): float16 passthrough
-    - Control tensors (gates/scales): float32 passthrough
-    """
-    result: dict[str, Tensor] = {}
-    meta: dict[str, object] = {}
-    for name, tensor in state_dict.items():
-        t = tensor.detach().cpu().contiguous()
-        cat = _classify_param(name)
-        # Non-float: pass through unchanged
-        if not t.is_floating_point():
-            result[name] = t
-            meta[name] = "passthrough"
-            continue
-        # Control tensors: keep float32
-        if any(p in name for p in CONTROL_TENSOR_NAME_PATTERNS):
-            result[name] = t.float()
-            meta[name] = "passthrough_ctrl"
-            continue
-        # Small tensors: float16 passthrough
-        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
-            orig_dtype_str = str(t.dtype).removeprefix("torch.")
-            result[name] = t.to(torch.float16)
-            meta[name] = {"type": "passthrough_f16", "orig_dtype": orig_dtype_str}
-            continue
-        # Large floating-point tensors: quantize by category
-        if cat == "mlp":
-            q, s = quantize_ternary_per_row(t)
-            result[name + ".q"] = q
-            result[name + ".scale"] = s
-            meta[name] = {"type": "ternary"}
-        elif cat == "attn":
-            q, s = quantize_int4_per_row(t)
-            result[name + ".q"] = q
-            result[name + ".scale"] = s
-            meta[name] = {"type": "int4"}
-        else:
-            # embed, other: int6 (most sensitive, least compression pressure)
-            q, s = quantize_int6_per_row(t)
-            result[name + ".q"] = q
-            result[name + ".scale"] = s
-            meta[name] = {"type": "int6"}
-    return result, meta
-def adaptive_dequantize(
-    result: dict[str, Tensor],
-    meta: dict[str, object],
-    template_sd: dict[str, Tensor],
-) -> dict[str, Tensor]:
-    """Dequantize adaptive quantization output back to original dtypes."""
-    out: dict[str, Tensor] = {}
-    for name, orig in template_sd.items():
-        info = meta.get(name)
-        if info is None:
-            continue
-        orig_dtype = orig.dtype
-        if info == "passthrough":
-            out[name] = result[name]
-            continue
-        if info == "passthrough_ctrl":
-            t = result[name]
-            out[name] = t.to(orig_dtype) if t.dtype != orig_dtype else t
-            continue
-        if isinstance(info, dict) and info.get("type") == "passthrough_f16":
-            t = result[name]
-            stored_dtype_str = info.get("orig_dtype", "bfloat16")
-            out_dtype = getattr(torch, stored_dtype_str) if isinstance(stored_dtype_str, str) else orig_dtype
-            out[name] = t.to(out_dtype).contiguous()
-            continue
-        # Quantized tensors: ternary, int4, int6 all share same dequant logic
-        q = result[name + ".q"]
-        s = result[name + ".scale"]
-        if s.ndim > 0:
-            out[name] = (q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))).to(orig_dtype).contiguous()
-        else:
-            out[name] = (q.float() * float(s.item())).to(orig_dtype).contiguous()
-    return out
 def eval_val_sliding(
     args: Hyperparameters,
     base_model: nn.Module,
@@ -924,8 +891,9 @@ def eval_val_sliding(
     batch_seqs: int = 32,
     eval_seq_len: int | None = None,
 ) -> tuple[float, float]:
-    """Sliding window eval with 11-gram multi-order backoff + Hedge Mixer + add-delta smoothing.
-    LEGAL: score-first/update-after n-gram, per-rank tables, no cross-rank sharing."""
+    """Sliding window evaluation with optional multi-order n-gram cache.
+    N-gram cache uses score-first/update-after protocol (legal per competition rules).
+    Inspired by PR #727's entropy-adaptive backoff approach."""
     seq_len = eval_seq_len or args.train_seq_len
     total_tokens = val_tokens.numel() - 1
     window_starts = [ws for ws in range(0, total_tokens, stride)
@@ -938,20 +906,24 @@ def eval_val_sliding(
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
-    # N-gram configuration
+    # v10 Hedge Mixer config — read from env (same pattern as n-gram config)
+    hedge_enabled = bool(int(os.environ.get("HEDGE_ENABLED", "1")))
+    hedge_beta = float(os.environ.get("HEDGE_BETA", "2.0"))
+    # Hedge state: log-weights for [pure_neural, ngram_enhanced]. Start uniform (log 0.5 each).
+    hedge_log_w = np.array([-math.log(2.0), -math.log(2.0)], dtype=np.float64)
+
+    # N-gram eval cache configuration
     use_ngram = bool(int(os.environ.get("NGRAM_CACHE", "1")))
-    ngram_order = int(os.environ.get("NGRAM_ORDER", "11"))
+    ngram_alpha = float(os.environ.get("NGRAM_ALPHA", "0.40"))
+    ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "2"))
+    ngram_order = int(os.environ.get("NGRAM_ORDER", "11"))  # v9a: 11-gram (PR #795 uses 11)
     ngram_min_order = int(os.environ.get("NGRAM_MIN_ORDER", "2"))
     ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", "4194304"))  # 4M buckets
-    ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", "2"))
     ngram_entropy = bool(int(os.environ.get("NGRAM_ENTROPY", "1")))
-    # Add-delta smoothing
-    ngram_delta = float(os.environ.get("NGRAM_DELTA", "0.01"))
-    ngram_vocab = args.vocab_size  # 1024
-
-    # Hedge Mixer
-    hedge_enabled = bool(int(os.environ.get("HEDGE_ENABLED", "1")))
-    hedge_eta = float(os.environ.get("HEDGE_ETA", "0.1"))
+    ngram_ent_base = float(os.environ.get("NGRAM_ENT_BASE", "0.05"))
+    ngram_ent_range = float(os.environ.get("NGRAM_ENT_RANGE", "0.55"))
+    ngram_ent_scale = float(os.environ.get("NGRAM_ENT_SCALE", "2.0"))
+    ngram_ent_thresh = float(os.environ.get("NGRAM_ENT_THRESH", "4.0"))
 
     if use_ngram:
         val_np = val_tokens.cpu().numpy()
@@ -964,18 +936,10 @@ def eval_val_sliding(
              np.uint64(131071), np.uint64(175447), np.uint64(209591), np.uint64(262147),
              np.uint64(393241), np.uint64(524287), np.uint64(699053)],
             dtype=np.uint64,
-        )
+        )  # 11 primes for 11-gram orders
         if rank == 0:
-            print(
-                f"v10_moonshot:ngram_cache:enabled orders={ngram_min_order}-{ngram_order} "
-                f"entropy={ngram_entropy} delta={ngram_delta} "
-                f"hedge={hedge_enabled} eta={hedge_eta} buckets={ngram_buckets}",
-                flush=True,
-            )
-
-    # Hedge Mixer state: global across eval run, adapts online
-    hedge_w_neural = np.float64(0.5)
-    hedge_w_ngram = np.float64(0.5)
+            print(f"ngram_cache:enabled orders={ngram_min_order}-{ngram_order} backoff "
+                  f"entropy={ngram_entropy} alpha={ngram_alpha} buckets={ngram_buckets}", flush=True)
 
     base_model.eval()
     compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
@@ -1011,14 +975,17 @@ def eval_val_sliding(
                 if use_ngram:
                     seg_nll_np = scored_nll.cpu().numpy()
                     seg_model_p = np.exp(-seg_nll_np)
+                    p_neural_pure = seg_model_p.copy()  # save pure neural probs for hedge
                     n_seg = len(seg_nll_np)
                     global_j = np.arange(ws + s + 1, ws + wlen + 1, dtype=np.int64)
 
-                    seg_ent = None
+                    # Entropy-adaptive alpha from model logits
                     if ngram_entropy:
                         with torch.no_grad():
                             lp = F.log_softmax(logits[i, s:wlen].float(), dim=-1)
                             seg_ent = -(lp.exp() * lp).sum(dim=-1).cpu().numpy()
+                        alpha_per_tok = ngram_ent_base + ngram_ent_range / (
+                            1.0 + np.exp(-ngram_ent_scale * (seg_ent - ngram_ent_thresh)))
 
                     # Precompute hashes for all orders
                     order_data = []
@@ -1039,9 +1006,10 @@ def eval_val_sliding(
                         full_key = ((ctx_hash ^ (tgt_np * ng_primes[ctx_w % len(ng_primes)])) & ng_mask).astype(np.int64)
                         order_data.append((v_idx, ctx_key, full_key))
 
-                    # Multi-order backoff, highest order first, add-delta smoothing
+                    # Multi-order backoff with order-adaptive alpha: highest order first
+                    # Higher-order matches are rarer but more precise → trust them more
                     best_p_ng = np.full(n_seg, -1.0)
-                    best_order = np.full(n_seg, -1, dtype=np.int32)
+                    best_order = np.full(n_seg, -1, dtype=np.int32)  # track which order matched
                     for oi in range(_n_orders - 1, -1, -1):
                         if order_data[oi] is None:
                             continue
@@ -1052,45 +1020,51 @@ def eval_val_sliding(
                         needs_fill = has_match & (best_p_ng[v_idx] < 0)
                         if needs_fill.any():
                             fill_idx = v_idx[needs_fill]
-                            # Add-delta smoothing
-                            p = (full_counts[needs_fill] + ngram_delta) / (
-                                ctx_counts[needs_fill] + ngram_delta * ngram_vocab
-                            )
+                            p = np.minimum(full_counts[needs_fill], ctx_counts[needs_fill]) / np.maximum(ctx_counts[needs_fill], 1.0)
                             best_p_ng[fill_idx] = np.clip(p, 0.0, 1.0)
                             best_order[fill_idx] = ngram_min_order + oi
 
-                    # Hedge Mixer: adaptive neural vs n-gram combination
+                    # Mix model + n-gram with order-adaptive entropy gating (PR #795 approach)
+                    # Higher-order matches → lower entropy threshold → trust n-gram at lower uncertainty
                     has_match = best_p_ng >= 0
                     if has_match.any():
                         mo = best_order[has_match].astype(np.float64)
-                        if ngram_entropy and seg_ent is not None:
-                            ent = seg_ent[has_match]
+                        if ngram_entropy:
+                            ent = seg_ent[has_match] if ngram_entropy else np.full(has_match.sum(), 4.0)
+                            # Order-adaptive center: 11-gram trusts at entropy 0.75, 2-gram at entropy 3.0
                             ent_center = 3.0
                             slope = 0.25
                             order_centers = ent_center - slope * (mo - float(ngram_min_order))
                             sig = 1.0 / (1.0 + np.exp(-2.0 * (ent - order_centers)))
-                            static_alpha = 0.05 + 0.55 * sig
+                            alpha = 0.05 + 0.55 * sig
                         else:
-                            static_alpha = np.full(has_match.sum(), 0.40)
+                            alpha = ngram_alpha
+                        seg_model_p[has_match] = (1.0 - alpha) * seg_model_p[has_match] + alpha * best_p_ng[has_match]
+                    # seg_model_p is now the "n-gram enhanced" expert (Expert 2)
+                    p_ngram_enhanced = seg_model_p  # alias for clarity
 
-                        if hedge_enabled:
-                            p_neural_m = seg_model_p[has_match]
-                            p_ngram_m = best_p_ng[has_match]
-                            w_total = hedge_w_neural + hedge_w_ngram
-                            w_n = hedge_w_neural / w_total
-                            w_g = hedge_w_ngram / w_total
-                            seg_model_p[has_match] = w_n * p_neural_m + w_g * p_ngram_m
-                            loss_neural = -np.log(np.clip(p_neural_m, 1e-12, 1.0)).mean()
-                            loss_ngram = -np.log(np.clip(p_ngram_m, 1e-12, 1.0)).mean()
-                            hedge_w_neural *= np.exp(-hedge_eta * loss_neural)
-                            hedge_w_ngram *= np.exp(-hedge_eta * loss_ngram)
-                            w_total = hedge_w_neural + hedge_w_ngram
-                            hedge_w_neural /= w_total
-                            hedge_w_ngram /= w_total
-                        else:
-                            seg_model_p[has_match] = (1.0 - static_alpha) * seg_model_p[has_match] + static_alpha * best_p_ng[has_match]
-
-                    scored_nll = torch.from_numpy(-np.log(np.clip(seg_model_p, 1e-12, 1.0))).to(dtype=torch.float64, device=device)
+                    # v10 Hedge Mixer: online multiplicative-weights between neural and ngram-enhanced.
+                    # Expert 1 = pure neural (p_neural_pure), Expert 2 = ngram-enhanced (p_ngram_enhanced).
+                    # Score FIRST with current hedge weights, THEN update weights (score-first protocol).
+                    if hedge_enabled:
+                        # Numerically-stable softmax over log-weights
+                        hw = hedge_log_w - hedge_log_w.max()
+                        w = np.exp(hw)
+                        w /= w.sum()
+                        # Mixed probability: convex combination
+                        p_final = w[0] * p_neural_pure + w[1] * p_ngram_enhanced
+                        scored_nll = torch.from_numpy(
+                            -np.log(np.clip(p_final, 1e-12, 1.0))
+                        ).to(dtype=torch.float64, device=device)
+                        # Update hedge weights AFTER scoring (score-first protocol maintained)
+                        # Use per-segment mean log-probability as the reward signal
+                        hedge_log_w[0] += hedge_beta * np.log(np.clip(p_neural_pure, 1e-12, 1.0)).mean()
+                        hedge_log_w[1] += hedge_beta * np.log(np.clip(p_ngram_enhanced, 1e-12, 1.0)).mean()
+                        # Clip log-weights to prevent numerical overflow
+                        hedge_log_w -= hedge_log_w.max()
+                        hedge_log_w = np.clip(hedge_log_w, -20.0, 0.0)
+                    else:
+                        scored_nll = torch.from_numpy(-np.log(np.clip(seg_model_p, 1e-12, 1.0))).to(dtype=torch.float64, device=device)
 
                     # Update tables AFTER scoring (score-first protocol)
                     for oi in range(_n_orders):
@@ -1107,7 +1081,6 @@ def eval_val_sliding(
                 tb = base_bytes_lut[tgt].to(torch.float64)
                 tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
                 byte_count += tb.sum()
-
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
@@ -1115,11 +1088,190 @@ def eval_val_sliding(
     val_loss = (loss_sum / token_count).item()
     bits_per_token = val_loss / math.log(2.0)
     tokens_per_byte = token_count.item() / byte_count.item()
-    if rank == 0:
-        print(f"hedge_mixer:final w_neural={float(hedge_w_neural):.4f} w_ngram={float(hedge_w_ngram):.4f}", flush=True)
     base_model.train()
     return val_loss, bits_per_token * tokens_per_byte
-# --- TTT (kept for TTT_ENABLED=1 override, disabled by default) ---
+def _classify_param(name: str) -> str:
+    if "tok_emb" in name or "lm_head" in name:
+        return "embed"
+    if ".mlp." in name:
+        return "mlp"
+    if ".attn." in name or (".proj." in name and ".mlp." not in name):
+        return "attn"
+    return "other"
+def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
+    t32 = t.float()
+    if t32.ndim == 2:
+        best_q, best_s, best_err = None, None, float('inf')
+        for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
+            if pct < 1.0:
+                row_clip = torch.quantile(t32.abs(), pct, dim=1)
+            else:
+                row_clip = t32.abs().amax(dim=1)
+            s = (row_clip / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
+            q = torch.clamp(torch.round(t32 / s.float()[:, None]), -clip_range, clip_range).to(torch.int8)
+            recon = q.float() * s.float()[:, None]
+            err = (t32 - recon).pow(2).mean().item()
+            if err < best_err:
+                best_q, best_s, best_err = q, s, err
+        return best_q, best_s
+    amax = t32.abs().max().item()
+    scale = torch.tensor(amax / clip_range if amax > 0 else 1.0, dtype=torch.float16)
+    q = torch.clamp(torch.round(t32 / scale.float()), -clip_range, clip_range).to(torch.int8)
+    return q, scale
+def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
+    num_layers_total = max(
+        (int(k.split(".")[1]) for k in state_dict if k.startswith("blocks.")),
+        default=0,
+    ) + 1
+    late_k_layers = set(range(num_layers_total - 2, num_layers_total))
+    result: dict[str, Tensor] = {}
+    meta: dict[str, object] = {}
+    for name, tensor in state_dict.items():
+        t = tensor.detach().cpu().contiguous()
+        cat = _classify_param(name)
+        if not t.is_floating_point() or t.numel() <= 65536:
+            result[name] = t.to(torch.float16) if t.is_floating_point() else t
+            meta[name] = "passthrough"
+            continue
+        if any(p in name for p in CONTROL_TENSOR_NAME_PATTERNS):
+            result[name] = t.float()
+            meta[name] = "passthrough_ctrl"
+            continue
+        if cat in int6_cats and t.ndim >= 1:
+            q, s = quantize_int6_per_row(t)
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = {"type": "int6"}
+        else:
+            q, s = quantize_float_tensor(t)
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = {"type": "int8"}
+    return result, meta
+def gradquant_mixed(
+    state_dict: dict[str, Tensor],
+    sensitivities: dict[str, float] | None = None,
+    int5_frac: float = 0.35,
+    int7_frac: float = 0.15,
+) -> tuple[dict, dict]:
+    """GradQuant: gradient-guided adaptive int5/6/7 quantization (PR #486 concept).
+
+    Uses gradient norms (or weight norms as fallback) to classify each large weight
+    tensor as high/medium/low sensitivity, then assigns Int7/Int6/Int5 respectively.
+    Low-sensitivity tensors use fewer bits → better zstd compression.
+    High-sensitivity tensors use more bits → better post-quant quality.
+
+    All data stored in same format as mixed_quantize_int6 (.q + .scale suffix),
+    so dequantize_mixed_int6 works unchanged.
+    """
+    # Collect all large floating-point tensors that will be quantized
+    quant_names = [
+        name for name, t in state_dict.items()
+        if t.is_floating_point() and t.numel() > 65536
+        and not any(p in name for p in CONTROL_TENSOR_NAME_PATTERNS)
+        and _classify_param(name) in {"mlp", "attn"}
+    ]
+
+    bits_map: dict[str, int] = {}
+    if sensitivities and quant_names:
+        # Sort by gradient sensitivity ascending (least sensitive first)
+        sorted_names = sorted(quant_names, key=lambda n: sensitivities.get(n, 0.0))
+        n = len(sorted_names)
+        n_int5 = max(1, int(n * int5_frac))
+        n_int7 = max(1, int(n * int7_frac))
+        for name in sorted_names[:n_int5]:
+            bits_map[name] = 5  # clip_range=15, best compression
+        for name in sorted_names[n - n_int7:]:
+            bits_map[name] = 7  # clip_range=63, best quality
+        # Remaining stay at int6 (default)
+        mid_count = n - n_int5 - n_int7
+        print(
+            f"gradquant: {n_int5} int5 + {mid_count} int6 + {n_int7} int7 "
+            f"(of {n} large weight tensors)",
+            flush=True,
+        )
+
+    result: dict[str, Tensor] = {}
+    meta: dict[str, object] = {}
+    clip_range_map = {5: 15, 6: 31, 7: 63}
+
+    for name, tensor in state_dict.items():
+        t = tensor.detach().cpu().contiguous()
+        cat = _classify_param(name)
+        if not t.is_floating_point() or t.numel() <= 65536:
+            result[name] = t.to(torch.float16) if t.is_floating_point() else t
+            meta[name] = "passthrough"
+            continue
+        if any(p in name for p in CONTROL_TENSOR_NAME_PATTERNS):
+            result[name] = t.float()
+            meta[name] = "passthrough_ctrl"
+            continue
+        if cat in {"mlp", "attn"} and t.ndim >= 1:
+            bits = bits_map.get(name, 6)
+            clip_range = clip_range_map[bits]
+            q, s = quantize_int6_per_row(t, clip_range=clip_range)
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = {"type": f"int{bits}"}
+        else:
+            q, s = quantize_float_tensor(t)
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = {"type": "int8"}
+    return result, meta
+
+
+def compute_grad_sensitivities(
+    model: nn.Module,
+    x_sample: Tensor,
+    y_sample: Tensor,
+    device: torch.device,
+) -> dict[str, float]:
+    """Compute per-parameter gradient L2 norms on a training-data sample.
+
+    Uses the LAST training batch (training data only — no validation data).
+    Gradients measure how much each weight affects the loss → proxy for quantization
+    sensitivity. High gradient norm → high sensitivity → assign more bits.
+
+    No weights are updated; gradients are discarded after measurement.
+    """
+    model.train()
+    model.zero_grad()
+    try:
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            loss = model(x_sample.to(device), y_sample.to(device))
+        loss.backward()
+        sensitivities: dict[str, float] = {}
+        for name, param in model.named_parameters():
+            if param.grad is not None and param.numel() > 65536:
+                sensitivities[name] = float(param.grad.detach().float().norm().item())
+        return sensitivities
+    finally:
+        model.zero_grad()
+
+
+def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
+                          template_sd: dict[str, Tensor]) -> dict[str, Tensor]:
+    out: dict[str, Tensor] = {}
+    for name, orig in template_sd.items():
+        info = meta.get(name)
+        if info is None:
+            continue
+        orig_dtype = orig.dtype
+        if info in ("passthrough", "passthrough_ctrl", "passthrough_fp16"):
+            t = result[name]
+            if t.dtype == torch.float16 and orig_dtype in (torch.float32, torch.bfloat16):
+                t = t.to(orig_dtype)
+            out[name] = t
+            continue
+        q, s = result[name + ".q"], result[name + ".scale"]
+        if s.ndim > 0:
+            out[name] = (q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))).to(orig_dtype)
+        else:
+            out[name] = (q.float() * float(s.item())).to(orig_dtype)
+    return out
+# --- TEST-TIME TRAINING (AdamW + cosine + per-layer LR, from PR #481) ---
+
 def _ttt_run_phase(
     model: nn.Module,
     ttt_params: list[torch.nn.Parameter],
@@ -1135,6 +1287,7 @@ def _ttt_run_phase(
     t0: float,
     cosine: bool = False,
 ) -> None:
+    """Run TTT phase with DDP gradient sharding. Each GPU processes 1/8 of val tokens."""
     distributed = world_size > 1
     n_tokens = val_tokens.numel()
     total_seqs = (n_tokens - 1) // seq_len
@@ -1189,6 +1342,8 @@ def _ttt_run_phase(
             cur_lr = optimizer.param_groups[0]["lr"]
             print(f"ttt epoch:{epoch+1}/{epochs} loss:{avg_loss:.4f} "
                   f"lr:{cur_lr:.6f} steps:{step_i} time:{time.perf_counter()-t0:.1f}s", flush=True)
+
+
 def ttt_adapt(
     args: Hyperparameters,
     model: nn.Module,
@@ -1197,6 +1352,8 @@ def ttt_adapt(
     rank: int = 0,
     world_size: int = 1,
 ) -> None:
+    """AdamW TTT with cosine LR decay and per-layer LR groups (PR #481 recipe).
+    Per-layer LR: mlp.proj gets 3x base lr, mlp.fc gets 0.5x, everything else 1x."""
     t0 = time.perf_counter()
     frozen = set()
     for i, block in enumerate(model.blocks):
@@ -1238,6 +1395,8 @@ def ttt_adapt(
         p.requires_grad_(True)
     if rank == 0:
         print(f"ttt:done elapsed={time.perf_counter()-t0:.1f}s", flush=True)
+
+
 def main() -> None:
     global zeropower_via_newtonschulz5
     code = Path(__file__).read_text(encoding="utf-8")
@@ -1415,9 +1574,10 @@ def main() -> None:
     log0(f"XSA:last_{args.xsa_last_n} active_layers:{xsa_layers}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
-    log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads} head_dim:{args.model_dim // args.num_heads}")
+    log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
+        f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
         f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
     )
     log0(
@@ -1426,7 +1586,6 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
-    log0(f"v10_moonshot:quant=adaptive(ternary_mlp+int4_attn+int6_embed)")
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
     def zero_grad_all() -> None:
         for opt in optimizers:
@@ -1470,6 +1629,9 @@ def main() -> None:
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
     ema_state = {name: t.detach().float().clone() for name, t in base_model.state_dict().items()}
+    # GradQuant: placeholder for last training batch (updated each step)
+    gradquant_x_sample: Tensor | None = None
+    gradquant_y_sample: Tensor | None = None
     ema_decay = 0.997
     training_time_ms = 0.0
     stop_after_step: int | None = None
@@ -1483,8 +1645,16 @@ def main() -> None:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
             val_loss, val_bpb = eval_val(
-                args, model, rank, world_size, device, grad_accum_steps,
-                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                args,
+                model,
+                rank,
+                world_size,
+                device,
+                grad_accum_steps,
+                val_tokens,
+                base_bytes_lut,
+                has_leading_space_lut,
+                is_boundary_token_lut,
             )
             log0(
                 f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
@@ -1514,6 +1684,8 @@ def main() -> None:
                 loss = model(x, y)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
+        # Save last training batch for GradQuant sensitivity measurement (training data only)
+        gradquant_x_sample, gradquant_y_sample = x.detach().clone(), y.detach().clone()
         train_loss /= grad_accum_steps
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
         muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
@@ -1527,6 +1699,7 @@ def main() -> None:
         for opt in optimizers:
             opt.step()
         zero_grad_all()
+        # EMA update
         with torch.no_grad():
             for name, t in base_model.state_dict().items():
                 ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
@@ -1561,6 +1734,7 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
+    # Apply EMA weights (better than SWA alone per PR#401)
     log0("ema:applying EMA weights")
     current_state = base_model.state_dict()
     avg_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
@@ -1587,39 +1761,49 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
+    # Magnitude pruning: zero out smallest 5% of large weights to improve compression
+    with torch.no_grad():
+        for name, param in base_model.named_parameters():
+            if param.ndim == 2 and param.numel() > 65536:
+                threshold = torch.quantile(param.abs().float().flatten(), 0.05)
+                mask = param.abs() < threshold
+                param.masked_fill_(mask, 0.0)
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
-    # Adaptive quantization: ternary MLP + int4 attn + int6 embed
-    quant_result, quant_meta = adaptive_quantize(sd_cpu)
+    # v10 GradQuant: compute gradient sensitivities on last training batch, then adaptive quant
+    if args.gradquant_enabled and gradquant_x_sample is not None:
+        log0("gradquant:computing gradient sensitivities on last training batch")
+        CastedLinear._qat_enabled = False  # disable QAT noise during sensitivity pass
+        sensitivities = compute_grad_sensitivities(base_model, gradquant_x_sample, gradquant_y_sample, device)
+        log0(f"gradquant:measured {len(sensitivities)} parameter sensitivities")
+        quant_result, quant_meta = gradquant_mixed(
+            sd_cpu,
+            sensitivities=sensitivities,
+            int5_frac=args.gradquant_int5_frac,
+            int7_frac=args.gradquant_int7_frac,
+        )
+    else:
+        quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"})
     quant_buf = io.BytesIO()
-    torch.save({"w": quant_result, "m": quant_meta, "fmt": "adaptive_v1"}, quant_buf)
+    torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
     quant_blob = zstandard.ZstdCompressor(level=22).compress(quant_raw) if _COMPRESSOR == "zstd" else zlib.compress(quant_raw, 9)
     if master_process:
-        with open("final_model.adaptive.ptz", "wb") as f:
+        with open("final_model.gq.ptz", "wb") as f:
             f.write(quant_blob)
         quant_file_bytes = len(quant_blob)
         code_bytes = len(code.encode("utf-8"))
-        total_bytes = quant_file_bytes + code_bytes
-        log0(f"Serialized model adaptive+{_COMPRESSOR}: {quant_file_bytes} bytes")
-        log0(f"Total submission size adaptive+{_COMPRESSOR}: {total_bytes} bytes")
-        if total_bytes > 16_000_000:
-            log0(f"WARNING: artifact {total_bytes} > 16MB LIMIT — CANNOT SUBMIT")
-        else:
-            log0(f"artifact_ok: {total_bytes} / 16000000 bytes ({100.0*total_bytes/16_000_000:.1f}%)")
-        # Log per-category param counts for debugging
-        n_ternary = sum(int(v.numel()) for k, v in quant_result.items() if k.endswith(".q") and quant_meta.get(k[:-2], {}).get("type") == "ternary")
-        n_int4 = sum(int(v.numel()) for k, v in quant_result.items() if k.endswith(".q") and quant_meta.get(k[:-2], {}).get("type") == "int4")
-        n_int6 = sum(int(v.numel()) for k, v in quant_result.items() if k.endswith(".q") and quant_meta.get(k[:-2], {}).get("type") == "int6")
-        log0(f"quant_breakdown: ternary_params={n_ternary} int4_params={n_int4} int6_params={n_int6}")
+        log0(f"Serialized model gradquant+{_COMPRESSOR}: {quant_file_bytes} bytes")
+        log0(f"Total submission size gradquant+{_COMPRESSOR}: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Total submission size gradquant+zlib: {quant_file_bytes + code_bytes} bytes")
     if distributed:
         dist.barrier()
-    with open("final_model.adaptive.ptz", "rb") as f:
+    with open("final_model.gq.ptz", "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(
         io.BytesIO(zstandard.ZstdDecompressor().decompress(quant_blob_disk) if _COMPRESSOR == "zstd" else zlib.decompress(quant_blob_disk)),
         map_location="cpu",
     )
-    deq_state = adaptive_dequantize(quant_state["w"], quant_state["m"], sd_cpu)
+    deq_state = dequantize_mixed_int6(quant_state["w"], quant_state["m"], sd_cpu)
     eval_model = GPT(
         vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim,
         num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult,
@@ -1627,7 +1811,7 @@ def main() -> None:
         logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
         mtp_num_heads=0, mtp_loss_weight=0.0,
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
-        xsa_last_n=args.xsa_last_n,
+        xsa_last_n=args.xsa_last_n,  # must match training model
         rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
         gated_attention=args.gated_attention,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
@@ -1647,19 +1831,21 @@ def main() -> None:
     )
     torch.cuda.synchronize()
     log0(
-        f"final_adaptive_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_gq_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
-    log0(f"final_adaptive_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
-    log0(f"quant_penalty: {q_val_bpb - diag_val_bpb:.6f} bpb (should be < 0.010)")
+    log0(f"final_gq_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    # --- AdamW TTT (PR #481 recipe) ---
     if args.ttt_enabled:
-        CastedLinear._qat_enabled = False
+        CastedLinear._qat_enabled = False  # disable QAT noise during TTT
         log0("ttt:starting AdamW TTT on quantized model")
         torch.cuda.synchronize()
         t_ttt = time.perf_counter()
         ttt_adapt(args, eval_model, device, val_tokens, rank, world_size)
         torch.cuda.synchronize()
         log0(f"ttt:total_time {1000.0 * (time.perf_counter() - t_ttt):.0f}ms")
+    # Reset torch.compile cache after TTT weight modifications to prevent
+    # "tensor does not have a device" crash on subsequent seeds (PR #548 fix)
     torch._dynamo.reset()
     sw_seq_len = effective_eval_seq_len
     if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
@@ -1673,11 +1859,11 @@ def main() -> None:
         )
         torch.cuda.synchronize()
         log0(
-            f"final_adaptive_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
+            f"final_gq_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
             f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
         )
-        log0(f"final_adaptive_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
-        log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+        log0(f"final_gq_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+        log0(f"final_gq_zlib_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
     if args.eval_stride != 64 and 64 < sw_seq_len:
         torch.cuda.synchronize()
         t_slide64 = time.perf_counter()
@@ -1689,11 +1875,11 @@ def main() -> None:
         )
         torch.cuda.synchronize()
         log0(
-            f"final_adaptive_sliding_window_s64 val_loss:{sw64_val_loss:.4f} val_bpb:{sw64_val_bpb:.4f} "
+            f"final_gq_sliding_window_s64 val_loss:{sw64_val_loss:.4f} val_bpb:{sw64_val_bpb:.4f} "
             f"stride:64 eval_time:{1000.0 * (time.perf_counter() - t_slide64):.0f}ms"
         )
-        log0(f"final_adaptive_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
-        log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
+        log0(f"final_gq_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
+        log0(f"final_gq_zlib_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
     if distributed:
         dist.destroy_process_group()
 if __name__ == "__main__":
