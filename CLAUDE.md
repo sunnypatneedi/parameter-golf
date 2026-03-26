@@ -10,12 +10,20 @@
 - **GPTQ calibration rule (new, 2026-03-24)**: Hessian/calibration for GPTQ must be done within the 600s training window. Using training data during eval phase is disallowed.
 - **Hardware**: Must be 8×H100 SXM (not A100, not A800). Non-H100 runs are non-record.
 
-## Current SOTA (as of 2026-03-24)
+## Current SOTA (as of 2026-03-26) — PARADIGM SHIFT: N-GRAM REVOLUTION
+
 - **Merged SOTA: 1.1194** — abaybektursun, PR #549, merged 2026-03-23
   - Stack: LeakyReLU(0.5)² + Legal Score-First TTT + Parallel Muon + 11L XSA4 + EMA + PartialRoPE + GPTQ-lite int6
-  - Pre-TTT: 1.1218 | TTT gain: -0.0024
-- **Best valid open PR: 1.1180** — kshitizz36, PR #626 (Full GPTQ + LeakyReLU² + Parallel Muon, no TTT)
-- **Non-record ceiling: 1.0983** — Christopher-Lee-McClendon, PR #628 (unlimited compute, 4×A100 2.8h, GEPA + 20k steps + TTT)
+- **Our PR #771: 1.0705** — open, no reviews (AdamW TTT 30ep cosine + per-layer LR on PR #549 base)
+- **Best open score-first two-pass N-gram: 0.1181** — PR #868 (order-12 backoff, budgeted two-pass)
+- **Best open full-rescore N-gram: 0.0935** — PR #870 (BROADSIDE, legality DISPUTED — await @valerio-oai ruling)
+
+**⚠️ CRITICAL (2026-03-25)**: Backward-looking N-gram eval cache confirmed legal by @valerio-oai. Two-pass N-gram rescoring now achieves sub-0.12 BPB — a **10× improvement** over merged SOTA. All competitive submissions must use N-gram interpolation.
+
+### N-gram Technique Summary
+- **Single-pass backward N-gram** (PR #727, 0.9674): multi-order backoff orders 2–7, entropy-adaptive alpha `0.05 + 0.55*sigmoid(2*(H-4.0))` — **CONFIRMED LEGAL**
+- **Score-first two-pass** (PR #868, 0.1181): Pass 1 scores each chunk with partial cache, Pass 2 rescores with complete 62M-token cache — **LIKELY LEGAL**
+- **Full-rescore** (PR #870, 0.0935): rescores all 62M tokens including self — **LEGALITY DISPUTED, DO NOT IMPLEMENT until @valerio-oai rules**
 
 ## Our Baseline
 - **1.1249** (PR #486 reproduced)
@@ -33,7 +41,13 @@
 
 ## Competition Strategy
 
-### Current Best Path
+### Current Best Path (updated 2026-03-26)
+1. **Check PR #870 legality ruling daily** — if full-rescore approved, that's the entire game (0.0935 BPB).
+2. **Implement score-first two-pass N-gram** (PR #868 approach) on our PR #771 stack. Target: ~0.11 BPB.
+3. **If two-pass ruled illegal**, implement single-pass N-gram (PR #727 approach). Target: ~0.97 BPB.
+4. Architecture improvements (XSA, TTT tuning) are now secondary to eval strategy.
+
+### Previous Best Path (superseded by N-gram revolution)
 1. Start from PR #549 merged SOTA stack.
 2. **Layer in**: XSA-all (XSA_LAST_N=11, confirmed -0.0016), Soft-Round QAT (-0.001 est).
 3. **TTT**: Legal score-first TTT, freeze=0, 3 epochs, cosine LR decay.
@@ -72,3 +86,6 @@
 - TTT adds ~-0.0024 BPB but costs ~410s of eval time — fits within budget.
 - Enforcement is active: check rule compliance before running expensive experiments.
 - XSA-all vs XSA4 is an easy win that may not yet be in our stack — verify and add.
+- **N-gram two-pass is a 10× win** (0.0935–0.1181 BPB) — eval strategy now dominates architecture choices.
+- **Check legality before implementing** any new eval-time technique — enforcement sweep closed 25+ PRs on 2026-03-24/25.
+- See `logs/daily_research.md` for full 2026-03-26 research report.
