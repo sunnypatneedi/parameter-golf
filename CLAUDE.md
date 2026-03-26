@@ -112,23 +112,44 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: 1.1228 val_bpb (signalrush, 2026-03-22)
-**Best open PR (unmerged)**: 1.0865 val_bpb (PR #548 LoquiAuris, per-doc LoRA TTT, pending verification)
-**Target**: Beat merged SOTA by >=0.005 nats. If open PRs merge first, target moves.
+**Merged leaderboard SOTA**: 1.1194 val_bpb (abaybektursun, 2026-03-23, PR #549: LeakyReLU² + Legal TTT + Parallel Muon)
+**Best open PR (unmerged, likely legal)**: 0.1181 val_bpb (PR #868, budgeted two-pass N-gram backoff order-12)
+**Best open PR (legality disputed)**: 0.0935 val_bpb (PR #870, full-rescore all 62M tokens — self-inclusion controversy, await @valerio-oai ruling)
+**Our PR #771**: 1.0705 val_bpb (open, no reviews, AdamW TTT 30ep on PR #549 base)
+**Target**: Implement N-gram two-pass interpolation — gap to legal frontier is ~0.95 BPB.
 
-**The AdamW TTT revolution**: LoRA TTT hurts (+0.004 bpb). AdamW TTT with aggressive config gives **-0.04 to -0.06 bpb** — the single biggest unlock. Every sub-1.10 submission uses it. Config: 30 epochs, cosine LR decay, lr=0.0005, per-layer LR (MLP output 3x, input 0.5x).
+**PARADIGM SHIFT (2026-03-25)**: N-gram backward-looking eval cache (confirmed legal by @valerio-oai) has been extended to two-pass full-rescore, dropping scores from ~1.12 to sub-0.12 BPB. Architecture improvements (XSA, TTT, etc.) now matter far less than eval strategy. Every competitive submission will use N-gram interpolation.
 
-**Our approach (v5.1 — full stack)**:
-1. **AdamW TTT** (30 epochs, cosine, per-layer LR) — -0.04 to -0.06 bpb (from PR #481)
-2. **XSA on all 11 layers** — exclusive self-attention, -0.002 to -0.005 bpb (from PR #503)
-3. **Value Residual (ResFormer)** — blend V vectors from layer 0, 22 params (from PR #486)
-4. **GradQuant** — gradient-guided adaptive Int5/6/7 quantization (from PR #486)
-5. **TrigramHash(4096)** — 3-gram context embedding (from PR #486)
-6. **Partial RoPE (16/64)**, **LN Scale**, **EMA (0.997) + SWA (every 50)**, **11 layers**
+**The N-gram eval revolution**:
+- Single-pass backward N-gram (PR #727): 0.9674 BPB — multi-order backoff (2–7), entropy-adaptive alpha
+- Score-first two-pass (PR #868): 0.1181 BPB — Pass 1 scores with partial cache, Pass 2 rescores with complete cache
+- Full-rescore (PR #870): 0.0935 BPB — rescores all 62M tokens, legality unclear (self-inclusion)
 
-**Key insight**: No submission combines ALL proven techniques. PR #486 lacks XSA. PR #503 has XSA but conservative TTT. Our edge is the combination.
+**N-gram implementation (safe variant, PR #727 approach)**:
+- Multi-order backoff orders 2–7 (attempt highest order first, cascade down)
+- Entropy-adaptive alpha: `alpha = 0.05 + 0.55 * sigmoid(2 * (H - 4.0))`
+- Only counts from previously-scored tokens (backward-looking only)
+- Expected: ~0.10 BPB delta on top of our current 1.0705
 
-**Key reference PRs**: #486 (SOTA 1.0887), #490 (1.0891), #481 (1.0970, best TTT ref), #503 (1.1218, XSA ref)
+**Two-pass N-gram (score-first, PR #868 approach — await legality confirmation)**:
+- Pass 1: Score all 63×1M chunks with current partial cache, build 62M-token order-12 cache
+- Pass 2: Rescore all chunks with complete cache
+- Expected: ~0.97 additional BPB delta vs single-pass
+- Do NOT submit until explicitly confirmed legal by @valerio-oai
+
+**The AdamW TTT revolution (still valid on top of N-gram)**:
+- Config: 30 epochs, cosine LR decay, lr=0.0005, per-layer LR (MLP output 3x, input 0.5x)
+- Delta: -0.04 to -0.06 bpb (relative to base, smaller at lower bpb)
+
+**Our architecture stack (v5.1, still relevant for base model quality)**:
+1. AdamW TTT (30 epochs, cosine, per-layer LR)
+2. XSA on all 11 layers
+3. Value Residual (ResFormer)
+4. GradQuant (adaptive Int5/6/7)
+5. TrigramHash(4096)
+6. Partial RoPE (16/64), LN Scale, EMA (0.997) + SWA (every 50), 11 layers
+
+**Key reference PRs**: #727 (0.9674, best single-pass N-gram), #868 (0.1181, score-first two-pass), #870 (0.0935, full-rescore), #486 (1.0887 arch ref), #481 (1.0970, TTT ref)
 
 **Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), larger vocab (embedding cost), custom Triton kernels (poor EV), int4 without QAT (quality-destructive at this scale), eval stride=32 (exceeds time budget with 30-epoch TTT).
 
@@ -138,6 +159,9 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 | Technique | Approx Δ bpb | Status |
 |-----------|-------------|--------|
+| **Two-pass score-first N-gram (order-12)** | **~-1.00** | **Open PR #868 (legality: likely legal, await confirmation)** |
+| **Full-rescore N-gram (all 62M tokens)** | **~-1.02** | **Open PR #870 (legality: DISPUTED — self-inclusion)** |
+| **Single-pass N-gram backoff (orders 2–7)** | **~-0.10** | **Open PR #727, confirmed legal approach** |
 | **AdamW TTT (30 ep, cosine, per-layer LR)** | **-0.04 to -0.06** | **In SOTA + our submission** |
 | Sliding window eval (stride=64) | -0.032 | In SOTA |
 | TrigramHash + ValueResidual + GradQuant | -0.023 | In SOTA (PR #486) |
