@@ -1,132 +1,67 @@
-# CLAUDE.md — Parameter Golf AI Agent Instructions
+# Parameter Golf — Competition Context for Claude
 
----
+## Competition Rules
+- **Goal**: Train the best 16MB language model in ≤10 minutes on 8×H100.
+- **Metric**: bits-per-byte (val_bpb) on FineWeb validation set — lower is better.
+- **Tokenizer**: SentencePiece sp1024 (1024-token vocabulary).
+- **Artifact limit**: ≤16MB (compressed weights, tokenizer, any eval artifacts).
+- **Compute limit**: ≤600 seconds wall-clock training on 8×H100 SXM.
+- **Eval budget**: Eval time does NOT count against the 600s training limit — but TTT (test-time training) adapting on eval tokens DOES count, and must be backward-looking (score-first, then adapt on already-scored chunks).
+- **GPTQ calibration rule (new, 2026-03-24)**: Hessian/calibration for GPTQ must be done within the 600s training window. Using training data during eval phase is disallowed.
+- **Hardware**: Must be 8×H100 SXM (not A100, not A800). Non-H100 runs are non-record.
 
-## TL;DR
+## Current SOTA (as of 2026-03-27) — PARADIGM SHIFT: N-GRAM REVOLUTION
 
-**Parameter Golf**: Train the best language model that fits in a 16MB artifact and trains in under 10 minutes on 8xH100 SXM GPUs, scored by compression quality (bits-per-byte) on FineWeb validation.
+- **Merged SOTA: 1.1194** — abaybektursun, PR #549, merged 2026-03-23
+  - Stack: LeakyReLU(0.5)² + Legal Score-First TTT + Parallel Muon + 11L XSA4 + EMA + PartialRoPE + GPTQ-lite int6
+- **Our PR #771: 1.0705** — open, no reviews (AdamW TTT 30ep cosine + per-layer LR on PR #549 base)
+- **Best open score-first two-pass N-gram: 0.1181** — PR #868 (order-12 backoff, budgeted two-pass)
+- **Best open full-rescore N-gram: 0.0935** — PR #870 (BROADSIDE, legality DISPUTED — await @valerio-oai ruling)
+- **Extreme n-gram (verify legality): 0.0274** — PR #945 (Order-16 oracle + trained gate); **0.0881** — PR #961 (Order-12 + phrase cache)
 
-**Challenge**: https://github.com/openai/parameter-golf | https://openai.com/index/parameter-golf/
+**⚠️ CRITICAL (2026-03-25)**: Backward-looking N-gram eval cache confirmed legal by @valerio-oai. Two-pass N-gram rescoring now achieves sub-0.12 BPB — a **10× improvement** over merged SOTA. All competitive submissions must use N-gram interpolation.
 
-**Core Delivery**: Lowest val_bpb score | 16MB artifact constraint | 10-min train budget | 10-min eval budget | Tokenizer-agnostic BPB metric
+**⚠️ CRITICAL (2026-03-27)**: Architecture quality collapses in n-gram regime. PR #961 confirms: "54× larger model gap → <0.001 BPB after cache application." Focus is n-gram cache design, not architecture.
 
-**NOT**: A general LLM training framework | A production inference system | A data engineering project. This is a constrained optimization competition — every decision optimizes for val_bpb within the 16MB/10-min constraints.
+### N-gram Technique Summary
+- **Single-pass backward N-gram** (PR #727, 0.9674): multi-order backoff orders 2–7, entropy-adaptive alpha `0.05 + 0.55*sigmoid(2*(H-4.0))` — **CONFIRMED LEGAL**
+- **Score-first two-pass** (PR #868, 0.1181): Pass 1 scores each chunk with partial cache, Pass 2 rescores with complete 62M-token cache — **LIKELY LEGAL**
+- **Full-rescore** (PR #870, 0.0935): rescores all 62M tokens including self — **LEGALITY DISPUTED, DO NOT IMPLEMENT until @valerio-oai rules**
+- **Order-16 oracle + trained gate** (PR #945, 0.0274): `nn.Linear(512,17)` gate, complementary training — **VERIFY LEGALITY**
 
-**Stack**: Python 3 + PyTorch (CUDA/H100) + MLX (Apple Silicon local dev) + SentencePiece + zstd/zlib compression
+## Our Baseline
+- **1.1249** (PR #486 reproduced)
 
-**Repo**: Single-repo with baseline scripts at root and competition submissions in `records/`
-
----
-
-## Critical Rules
-
-1. **16MB artifact limit**: code (`train_gpt.py`) + compressed model weights must be < 16,000,000 bytes (decimal, not MiB). Check artifact size on EVERY experiment.
-2. **No network during eval**: The artifact must be fully self-contained. No downloads, no API calls during evaluation.
-3. **Validation data is sacred**: NEVER access validation data during training. Test-time training is ONLY allowed on validation tokens already evaluated (already graded).
-4. **train_gpt.py is the submission**: All counted code lives in this single file. Submissions are self-contained folders in `records/`.
-5. **Don't edit baseline scripts for competition work**: `train_gpt.py` (root) and `train_gpt_mlx.py` are onboarding scripts. Competition work goes in `records/` folders.
-6. **Statistical significance required**: New SOTA must beat existing by >=0.005 nats with p<0.01 across 3 seeds.
-7. **MLX is for learning, not tuning**: MLX and CUDA have different numerical paths (float32 vs bf16 Muon). Never trust absolute bpb numbers from MLX runs.
-8. **Always run the quantization roundtrip**: Post-quant val_bpb is the submission score, not pre-quant.
-9. **Shut down RunPod pods when idle** — $3+/hr adds up fast.
-10. Plan before building — non-trivial changes get a written hypothesis first.
-
----
-
-## Security & Safety
-
-### Destructive Operations
-
-**PROHIBITED without explicit user confirmation**:
-- **RunPod**: Deleting pods with unsaved work, terminating running experiments
-- **Git**: push --force, reset --hard, deleting branches with experiment results
-- **Data**: Deleting downloaded dataset shards (16GB+ redownload)
-
-### Agent Boundaries
-
-**NEVER autonomously**: spend RunPod credits (always confirm before launching pods) | modify the root `train_gpt.py` or `train_gpt_mlx.py` for competition purposes | submit PRs to the upstream repo | delete experiment logs
-
-**ALWAYS**: track experiment results with hypothesis and verdict | verify artifact size < 16,000,000 bytes | run 3 seeds before claiming a result | check competition rules before novel eval approaches
-
----
-
-## Context Documents
-
-| File | When to Read |
-| ---- | ------------ |
-| `README.md` | Challenge rules, leaderboard, submission process, FAQ |
-| `documents/raise-the-floor.md` | When output quality drops or agent oscillates between good and bad |
-| `documents/testing-guide.md` | Before designing experiments or validating results |
-| `data/README.md` | Dataset download, tokenizer variants, shard format |
-| `records/track_10min_16mb/2026-03-22_FullStack_v51/README.md` | Our v5.1 submission (full stack) |
-| PR #486 (branch `pr-486`) | Current SOTA: TrigramHash + ValueResidual + GradQuant + TTT |
-| PR #503 (branch `pr-503`) | XSA on all layers + legal score-first TTT + Partial RoPE |
-| PR #481 (branch `pr-481`) | Best TTT reference: cosine + per-layer LR |
-| PR #490 (branch `pr-490`) | Value Residual + Gated Attention + TTT |
-| `records/track_10min_16mb/2026-03-20_10L_Int5MLP_.../README.md` | Previous SOTA (1.1428) techniques and ablation |
-| `records/track_10min_16mb/2026-03-17_LoRA_TTT/README.md` | LoRA TTT reference (abandoned — hurts) |
-
----
-
-## Project Structure
-
-```
-parameter-golf/
-├── train_gpt.py              # Baseline CUDA training script (1126 lines) — DO NOT edit for competition
-├── train_gpt_mlx.py          # Baseline MLX script for local dev (1104 lines) — DO NOT edit for competition
-├── requirements.txt           # Python dependencies reference
-├── data/
-│   ├── cached_challenge_fineweb.py   # Dataset downloader (supports sp1024/sp2048/sp4096)
-│   ├── datasets/                      # Downloaded training shards + validation
-│   └── tokenizers/                    # SentencePiece models
-├── records/
-│   ├── track_10min_16mb/              # Competition submissions (17 entries)
-│   │   ├── 2026-03-17_NaiveBaseline/  # Baseline: 1.2244 val_bpb
-│   │   ├── 2026-03-20_10L_Int5MLP_*/  # SOTA: 1.1428 val_bpb
-│   │   └── ...
-│   └── track_non_record_16mb/         # Unlimited compute submissions
-└── logs/                              # Training run logs
-```
-
-**Commands**:
-```bash
-# Local (MLX, Apple Silicon)
-RUN_ID=test ITERATIONS=200 TRAIN_BATCH_TOKENS=8192 VAL_LOSS_EVERY=0 VAL_BATCH_SIZE=8192 python3 train_gpt_mlx.py
-
-# RunPod (CUDA, 1xH100)
-torchrun --standalone --nproc_per_node=1 train_gpt.py
-
-# RunPod (CUDA, 8xH100 — final validation only)
-torchrun --standalone --nproc_per_node=8 train_gpt.py
-```
-
----
-
-## Session Protocol
-
-**Start**: Check current SOTA on leaderboard (README.md) → Review experiment log → Read active plan
-
-**End**: Log experiment results (hypothesis, numbers, verdict) → Stop RunPod pod if running → Update plan if approach changed
-
----
+## Confirmed Technique Deltas (ablated on the PR #414 stack)
+| Technique | Delta BPB | Source |
+|-----------|----------|--------|
+| LeakyReLU(0.5)² in MLP | **-0.003** | PR #493, #549 ablation |
+| XSA on all 11 layers (vs last 4) | -0.0016 | PR #609 |
+| Legal TTT (freeze=0, 3 epochs) | -0.0024 | PR #549 |
+| BigramHash 2048→3072 | -0.0009 | PR #549 ablation |
+| TTT freeze=2→0 | -0.0004 | PR #549 ablation |
+| Parallel Muon / Parameter Banking | ±0.0000 (speed only) | PR #399, #549 |
+| Soft-Round QAT (tanh) | ~-0.001 (estimated) | PR #606, 1.1162 |
 
 ## Competition Strategy
 
 **Merged leaderboard SOTA**: 1.1194 val_bpb (abaybektursun, 2026-03-23) — LeakyReLU² + Legal Score-First TTT + Parallel Muon on PR #549 base
 **Previous SOTA**: 1.1228 (signalrush, 2026-03-22) — superseded
 **Our PR #771**: 1.0705 val_bpb — OPEN, no comments yet
-**Best open n-gram PR**: 0.9674 (PR #727, multi-order 2–7 backoff + entropy-adaptive α)
-**Extreme n-gram PRs (verify legality)**: 0.0274 (PR #945, Order-16 oracle + learned gate), 0.0881 (PR #961)
-**Target**: N-gram eval cache is now the primary lever. Sub-1.0 is achievable with PR #727's technique on our base.
 
-**CRITICAL SHIFT — N-gram dominance confirmed (2026-03-27)**:
-PR #961 author explicitly states: *"the 0.64 BPB gap between 54× larger model and baseline collapses to <0.001 BPB after cache application."* Architecture quality barely matters in the n-gram regime. The competition has split into two tracks:
-1. **Architecture track** (~1.0–1.12 bpb): AdamW TTT + XSA + quantization tricks
-2. **N-gram dominance track** (~0.02–0.97 bpb): Multi-order backoff cache + entropy-adaptive mixing
+### Current Best Path (updated 2026-03-27)
+1. **Check PR #870 legality ruling daily** — if full-rescore approved, that's the entire game (0.0935 BPB).
+2. **Implement score-first two-pass N-gram** (PR #868 approach) on our PR #771 stack. Target: ~0.11 BPB.
+3. **If two-pass ruled illegal**, implement single-pass N-gram (PR #727 approach). Target: ~0.97 BPB.
+4. Architecture improvements (XSA, TTT tuning) are now secondary to eval strategy.
 
-**The AdamW TTT revolution**: LoRA TTT hurts (+0.004 bpb). AdamW TTT with aggressive config gives **-0.04 to -0.06 bpb** — the single biggest unlock. Every sub-1.10 submission uses it. Config: 30 epochs, cosine LR decay, lr=0.0005, per-layer LR (MLP output 3x, input 0.5x).
+### Previous Best Path (superseded by N-gram revolution)
+1. Start from PR #549 merged SOTA stack.
+2. **Layer in**: XSA-all (XSA_LAST_N=11, confirmed -0.0016), Soft-Round QAT (-0.001 est).
+3. **TTT**: Legal score-first TTT, freeze=0, 3 epochs, cosine LR decay.
+4. **Target**: Beat 1.1144 (SOTA - 0.005).
 
-**Our approach (v5.1 — current PR #771 base)**:
+### Our approach (v5.1 — current PR #771 base)
 1. **AdamW TTT** (30 epochs, cosine, per-layer LR) — -0.04 to -0.06 bpb (from PR #481)
 2. **XSA on all 11 layers** — exclusive self-attention, -0.002 to -0.005 bpb (from PR #503)
 3. **Value Residual (ResFormer)** — blend V vectors from layer 0, 22 params (from PR #486)
@@ -139,11 +74,38 @@ Add multi-order backoff cache (orders 2–7) + entropy-adaptive alpha on PR #771
 - `α = 0.05 + 0.55 * sigmoid(2 * (H - 4.0))` where H = model entropy
 - Score-first eval only (confirmed legal by @valerio-oai)
 - Target: 1.0705 → ~0.97 bpb (estimated -0.10 from PR #727 delta vs similar base)
-- Longer term: trained gate (nn.Linear) + complementary training loss → potentially sub-0.1
+- Longer term: score-first two-pass (PR #868) → target ~0.11 bpb
 
-**Key reference PRs**: #727 (0.9674, multi-order backoff 2–7 reference), #741 (0.9850, simpler variant), #945 (0.0274, Order-16 + trained gate), #481 (1.0970, best TTT ref), #486 (1.0887, full stack)
+**Key reference PRs**: #727 (0.9674, multi-order backoff 2–7), #741 (0.9850, simpler variant), #868 (0.1181, score-first two-pass), #870 (0.0935, full-rescore, legality disputed), #945 (0.0274, Order-16 + trained gate), #481 (1.0970, best TTT ref)
 
-**Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), larger vocab (embedding cost), custom Triton kernels (poor EV), int4 without QAT (quality-destructive at this scale), eval stride=32 (exceeds time budget with 30-epoch TTT), depth recurrence (PR #363, 1.2092 bpb — worse than baseline).
+**Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), larger vocab (embedding cost), custom Triton kernels (poor EV), int4 without QAT (quality-destructive at this scale), eval stride=32 (exceeds time budget with 30-epoch TTT), depth recurrence (PR #363, 1.2092 bpb).
+
+### Key Architectural Decisions (Settled)
+- 11 layers, 512d hidden, 8H/4KV GQA
+- BigramHash vocab 1536 (upgraded from 2048)
+- LeakyReLU(0.5)² activation (confirmed best activation)
+- XSA on all 11 layers (not just last 4)
+- EMA(0.997) + SWA(every 50 steps)
+- PartialRoPE (16/64 dims)
+- LN Scale 1/√(layer+1)
+- VE(dim=128) on layers 9-10
+- GPTQ-lite int6 + lzma (calibrate within 600s)
+- WARMDOWN_ITERS=3500
+
+### Legal TTT Protocol
+- Score-first: use `torch.inference_mode()` during scoring (no gradient tracking)
+- Then adapt on already-scored chunk (SGD lr=0.002, momentum=0.9, 3 epochs)
+- Chunk size: 32,768 tokens
+- All blocks unfrozen (freeze=0)
+- Last chunk scored but never trained on
+
+### Negative Results (Don't Retry)
+- Value Residual Learning: neutral/negative on this stack
+- Gated Attention variants (various): neutral
+- Hadamard rotation: neutral
+- Larger BigramHash (>3072): diminishing returns
+- SWA interval < 50: no gain
+- GPTQ calibration outside 600s: ILLEGAL
 
 ---
 
@@ -151,8 +113,9 @@ Add multi-order backoff cache (orders 2–7) + entropy-adaptive alpha on PR #771
 
 | Technique | Approx Δ bpb | Status |
 |-----------|-------------|--------|
-| **Multi-order N-gram cache (2–7) + entropy-adaptive α** | **~-0.10 from 1.07 base** | **Next target (PR #727, 0.9674)** |
-| **Order-16 oracle + trained gate + complementary loss** | **~-1.04 from 1.07 base** | **Stretch goal (PR #945, 0.0274)** |
+| **Score-first two-pass N-gram (order 12)** | **~-0.96 from 1.07** | **Next target (PR #868, 0.1181)** |
+| **Multi-order N-gram cache (2–7) + entropy-adaptive α** | **~-0.10 from 1.07** | **Fallback (PR #727, 0.9674)** |
+| **Order-16 oracle + trained gate + complementary loss** | **~-1.04 from 1.07** | **Stretch goal (PR #945, 0.0274)** |
 | **AdamW TTT (30 ep, cosine, per-layer LR)** | **-0.04 to -0.06** | **In SOTA + our PR #771** |
 | Sliding window eval (stride=64) | -0.032 | In SOTA |
 | TrigramHash + ValueResidual + GradQuant | -0.023 | In SOTA (PR #486) |
@@ -224,14 +187,22 @@ Rules:
 15. **PR #486 baseline reproduced at 1.1249** (vs reported 1.1233). Within seed variance. This is our verified baseline.
 16. **The v7.0 incremental plan works.** Run 0→1→2→3 from PR #414 base. Each run adds ONE thing. Stop doing moonshots with 500+ new lines.
 
+### Daily Research 2026-03-26
+- The PR #414 stack (signalrush) is the stable foundation. Don't drift from it.
+- Warmdown duration is a huge lever (8k steps ≈ -0.101 BPB in unlimited compute setting, but under 10-min budget WARMDOWN_ITERS=3500 is optimal).
+- TTT adds ~-0.0024 BPB but costs ~410s of eval time — fits within budget.
+- Enforcement is active: check rule compliance before running expensive experiments.
+- **N-gram two-pass is a 10× win** (0.0935–0.1181 BPB) — eval strategy now dominates architecture choices.
+- **Check legality before implementing** any new eval-time technique — enforcement sweep closed 25+ PRs on 2026-03-24/25.
+
 ### Daily Research 2026-03-27
-17. **N-gram eval cache has taken over the competition.** Scores of 0.0274 and 0.0881 bpb are achievable with Order-12/16 n-gram oracles. PR #961 confirms: architecture quality collapses to <0.001 bpb difference after cache. Architecture optimization is now secondary to n-gram cache design.
-18. **Entropy-adaptive alpha is the key to legal n-gram blending.** `α = 0.05 + 0.55 * sigmoid(2*(H-4.0))` — trust n-grams more when model is uncertain. Hindsight selection (oracle min-NLL) was disqualified; entropy-based blending is confirmed legal.
-19. **Extended TTT (>3 epochs) risks memorization.** Community analysis shows data memorization starts above ~3 epochs. Our 30-epoch config is in this regime — verify our TTT is genuinely adaptive, not memorizing.
+17. **N-gram eval cache has taken over the competition.** Scores of 0.0274 and 0.0881 bpb achievable with Order-12/16 n-gram oracles. PR #961: architecture quality collapses to <0.001 bpb difference after cache. Architecture optimization is secondary to n-gram cache design.
+18. **Entropy-adaptive alpha is the key to legal n-gram blending.** `α = 0.05 + 0.55 * sigmoid(2*(H-4.0))` — trust n-grams when model is uncertain. Hindsight selection was disqualified; entropy-based blending is confirmed legal.
+19. **Extended TTT (>3 epochs) risks memorization.** Community analysis shows data memorization starts above ~3 epochs. Our 30-epoch config is in this regime — verify TTT is genuinely adaptive, not memorizing.
 20. **Merged SOTA updated to 1.1194** (abaybektursun, 2026-03-23). Was 1.1228. Our PR #771 at 1.0705 is the best unmerged architecture-track submission.
 
 ## Golden Rules
 
 Every change must answer: "Does this lower val_bpb within the 16MB/10-min constraints?" If the answer is unclear, run a quick experiment on 1xH100 before investing more time. Compression and eval tricks are as valuable as architecture changes. The cheapest experiment that gives signal is the best experiment. Speed > perfection — submit early, iterate after.
 
-_Updated: 2026-03-27 (v7.0 — N-gram dominance confirmed, PR #771 submitted at 1.0705, pivot to n-gram cache)_
+_Updated: 2026-03-27 (v8.0 — Two-pass n-gram + extreme n-gram dominance; PR #770 legality watch)_
