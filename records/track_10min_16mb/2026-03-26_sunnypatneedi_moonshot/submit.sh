@@ -1,93 +1,127 @@
 #!/usr/bin/env bash
-# submit.sh — Package the best v10 script for H100 submission.
+# submit.sh — Package and launch v10 moonshot for 8×H100 submission.
 #
 # Usage:
-#   bash submit.sh [safe|moonshot]   # default: safe
+#   bash submit.sh [--seed N] [--dry-run]
 #
-# What it does:
-#   1. Copies chosen train_gpt_v10_*.py → train_gpt.py in a staging dir
-#   2. Runs on 1xH100 to check artifact size and quant_penalty
-#   3. Prints instructions for 8xH100 final run
+# Environment variables (override defaults):
+#   SEED=1337 (default) — or pass --seed N
+#   DRY_RUN=1           — print command only, don't run
 #
-# IMPORTANT: This script DOES NOT auto-submit. Review output before submitting.
+# Best config (update from auto_experiment.py --best-config):
+#   python3 auto_experiment.py --best-config
 
 set -euo pipefail
 
-VARIANT="${1:-safe}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+TRAIN_SCRIPT="$SCRIPT_DIR/train_gpt_v10_moonshot.py"
 
-if [[ "$VARIANT" == "moonshot" ]]; then
-    SRC="$SCRIPT_DIR/train_gpt_v10_moonshot.py"
-    SUBMISSION_DIR="$REPO_ROOT/records/track_10min_16mb/2026-03-26_sunnypatneedi_moonshot_final"
-    EXPECTED_BYTES=14000000   # 14MB target
+# --- Defaults (proven from v9a validation) ---
+SEED="${SEED:-1337}"
+DRY_RUN="${DRY_RUN:-0}"
+
+# Parse args
+for arg in "$@"; do
+    case $arg in
+        --seed=*) SEED="${arg#*=}" ;;
+        --seed)   shift; SEED="$1" ;;
+        --dry-run) DRY_RUN=1 ;;
+    esac
+done
+
+# --- Config (best proven settings from v9a + v10 additions) ---
+export DATA_PATH="${DATA_PATH:-./data/datasets/fineweb10B_sp1024}"
+export TOKENIZER_PATH="${TOKENIZER_PATH:-./data/tokenizers/fineweb_1024_bpe.model}"
+export VOCAB_SIZE=1024
+export SEED="$SEED"
+export RUN_ID="v10_moonshot_seed${SEED}"
+
+# Architecture
+export NUM_LAYERS=11
+export MODEL_DIM=512
+export NUM_HEADS=8
+export NUM_KV_HEADS=4
+export MLP_MULT=3.0
+
+# Training
+export ITERATIONS=20000
+export WARMDOWN_ITERS=3500
+export WARMUP_STEPS=20
+export TRAIN_BATCH_TOKENS=786432
+export TRAIN_SEQ_LEN=2048
+export MAX_WALLCLOCK_SECONDS=600
+
+# Optimizer
+export MATRIX_LR=0.025
+export MUON_WD=0.04
+export ADAM_WD=0.04
+export GRAD_CLIP_NORM=0.3
+
+# Model features
+export XSA_LAST_N=11
+export GATED_ATTENTION=1
+export ROPE_DIMS=16
+export LN_SCALE=1
+export VE_ENABLED=1
+export VE_DIM=128
+export VE_LAYERS="7,8,9,10"
+export BIGRAM_VOCAB_SIZE=6144
+export BIGRAM_DIM=128
+export TIE_EMBEDDINGS=1
+
+# Quantization
+export LATE_QAT_THRESHOLD=0.15
+export QAT_ENABLED=0
+
+# v10 GradQuant
+export GRADQUANT_ENABLED=1
+export GRADQUANT_INT5_FRAC=0.35
+export GRADQUANT_INT7_FRAC=0.15
+
+# v10 Hedge Mixer
+export HEDGE_ENABLED=1
+export HEDGE_BETA=2.0
+
+# N-gram (11-gram, entropy-adaptive, 4M buckets, score-first protocol)
+export NGRAM_CACHE=1
+export NGRAM_ORDER=11
+export NGRAM_MIN_ORDER=2
+export NGRAM_BUCKETS=4194304
+export NGRAM_ENTROPY=1
+export NGRAM_ALPHA=0.40
+export NGRAM_ENT_BASE=0.05
+export NGRAM_ENT_RANGE=0.55
+export EVAL_STRIDE=64
+
+# SWA / EMA
+export SWA_ENABLED=1
+export SWA_EVERY=50
+
+# TTT disabled (v10a: all eval budget for n-gram + hedge)
+export TTT_ENABLED=0
+
+echo "=== v10 Moonshot Submission ==="
+echo "Script:    $TRAIN_SCRIPT"
+echo "Run ID:    $RUN_ID"
+echo "Seed:      $SEED"
+echo "GradQuant: enabled (int5_frac=${GRADQUANT_INT5_FRAC}, int7_frac=${GRADQUANT_INT7_FRAC})"
+echo "Hedge:     enabled (beta=${HEDGE_BETA})"
+echo "N-gram:    ${NGRAM_ORDER}-gram, ${NGRAM_BUCKETS} buckets, entropy-adaptive"
+echo ""
+
+CMD="nohup torchrun --standalone --nproc_per_node=8 $TRAIN_SCRIPT > /workspace/${RUN_ID}.log 2>&1 &"
+
+if [ "$DRY_RUN" = "1" ]; then
+    echo "[DRY RUN] Would execute:"
+    echo "$CMD"
+    echo ""
+    echo "After completion, check: tail -f /workspace/${RUN_ID}.log"
 else
-    SRC="$SCRIPT_DIR/train_gpt_v10_safe.py"
-    SUBMISSION_DIR="$REPO_ROOT/records/track_10min_16mb/2026-03-26_sunnypatneedi_safe_final"
-    EXPECTED_BYTES=15500000   # 15.5MB target
+    echo "Launching on 8×H100..."
+    eval "$CMD"
+    echo "PID: $!"
+    echo "Log: /workspace/${RUN_ID}.log"
+    echo ""
+    echo "Monitor: tail -f /workspace/${RUN_ID}.log"
+    echo "Check size: ls -lh final_model.gq.ptz"
 fi
-
-echo "====================================================="
-echo " v10 Submit Script — variant: $VARIANT"
-echo "====================================================="
-echo " Source:       $SRC"
-echo " Staging dir:  $SUBMISSION_DIR"
-echo " Size target:  <$EXPECTED_BYTES bytes"
-echo "====================================================="
-echo ""
-
-# ── Validate source exists ────────────────────────────────────────────────────
-if [[ ! -f "$SRC" ]]; then
-    echo "ERROR: Source script not found: $SRC"
-    exit 1
-fi
-
-# ── Create staging dir ────────────────────────────────────────────────────────
-mkdir -p "$SUBMISSION_DIR"
-cp "$SRC" "$SUBMISSION_DIR/train_gpt.py"
-echo "Copied $SRC → $SUBMISSION_DIR/train_gpt.py"
-
-# ── Check line count ──────────────────────────────────────────────────────────
-LINES=$(wc -l < "$SUBMISSION_DIR/train_gpt.py")
-echo "Script lines: $LINES"
-
-# ── Check script compresses well (pre-run estimate) ───────────────────────────
-SCRIPT_BYTES=$(wc -c < "$SUBMISSION_DIR/train_gpt.py")
-echo "Script size (raw): $SCRIPT_BYTES bytes"
-SCRIPT_ZSTD_BYTES=$(zstd -19 --compress "$SUBMISSION_DIR/train_gpt.py" -c | wc -c 2>/dev/null || echo "unknown")
-echo "Script size (zstd-19): $SCRIPT_ZSTD_BYTES bytes (estimate)"
-
-echo ""
-echo "====================================================="
-echo " NEXT STEPS"
-echo "====================================================="
-echo ""
-echo "1. On 1xH100 (quick smoke — ~2 min):"
-echo "   cd $SUBMISSION_DIR"
-echo "   nohup bash -c 'torchrun --standalone --nproc_per_node=1 train_gpt.py > smoke.log 2>&1' &"
-echo "   tail -f smoke.log"
-echo ""
-echo "   After run — check artifact size:"
-echo "   ls -lh artifact*.ptz 2>/dev/null || ls -lh final_model*.ptz 2>/dev/null"
-echo "   python3 -c \"import os; s=os.path.getsize('$(ls $SUBMISSION_DIR/*.ptz 2>/dev/null | head -1 || echo ARTIFACT.ptz)')+os.path.getsize('$SUBMISSION_DIR/train_gpt.py'); print(f'Artifact: {s:,} bytes ({100*s/16000000:.1f}% of limit)')\""
-echo ""
-echo "2. If size < 16MB and quant_penalty < 0.005:"
-echo "   → Run on 8xH100 (final validation, ~10 min):"
-echo "   nohup bash -c 'torchrun --standalone --nproc_per_node=8 train_gpt.py > final.log 2>&1' &"
-echo "   tail -f final.log"
-echo ""
-echo "3. Record val_bpb from final.log, then create submission.json:"
-cat << 'JSONTEMPLATE'
-   {
-     "val_bpb": <FILL_IN>,
-     "artifact_bytes": <FILL_IN>,
-     "seeds": [42, 43, 44],
-     "track": "10min_16mb",
-     "description": "v10 $VARIANT: 11-layer GPT + XSA + Hedge Mixer + 11-gram + adaptive quant"
-   }
-JSONTEMPLATE
-echo ""
-echo "4. Submit PR following records/track_10min_16mb/SUBMISSION_GUIDE.md"
-echo ""
-echo "REMINDER: Always verify val_bpb with 3 seeds before claiming SOTA!"
-echo "====================================================="
