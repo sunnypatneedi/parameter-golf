@@ -112,13 +112,21 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: 1.1228 val_bpb (signalrush, 2026-03-22)
-**Best open PR (unmerged)**: 1.0865 val_bpb (PR #548 LoquiAuris, per-doc LoRA TTT, pending verification)
-**Target**: Beat merged SOTA by >=0.005 nats. If open PRs merge first, target moves.
+**Merged leaderboard SOTA**: 1.1194 val_bpb (abaybektursun, 2026-03-23) — LeakyReLU² + Legal Score-First TTT + Parallel Muon on PR #549 base
+**Previous SOTA**: 1.1228 (signalrush, 2026-03-22) — superseded
+**Our PR #771**: 1.0705 val_bpb — OPEN, no comments yet
+**Best open n-gram PR**: 0.9674 (PR #727, multi-order 2–7 backoff + entropy-adaptive α)
+**Extreme n-gram PRs (verify legality)**: 0.0274 (PR #945, Order-16 oracle + learned gate), 0.0881 (PR #961)
+**Target**: N-gram eval cache is now the primary lever. Sub-1.0 is achievable with PR #727's technique on our base.
+
+**CRITICAL SHIFT — N-gram dominance confirmed (2026-03-27)**:
+PR #961 author explicitly states: *"the 0.64 BPB gap between 54× larger model and baseline collapses to <0.001 BPB after cache application."* Architecture quality barely matters in the n-gram regime. The competition has split into two tracks:
+1. **Architecture track** (~1.0–1.12 bpb): AdamW TTT + XSA + quantization tricks
+2. **N-gram dominance track** (~0.02–0.97 bpb): Multi-order backoff cache + entropy-adaptive mixing
 
 **The AdamW TTT revolution**: LoRA TTT hurts (+0.004 bpb). AdamW TTT with aggressive config gives **-0.04 to -0.06 bpb** — the single biggest unlock. Every sub-1.10 submission uses it. Config: 30 epochs, cosine LR decay, lr=0.0005, per-layer LR (MLP output 3x, input 0.5x).
 
-**Our approach (v5.1 — full stack)**:
+**Our approach (v5.1 — current PR #771 base)**:
 1. **AdamW TTT** (30 epochs, cosine, per-layer LR) — -0.04 to -0.06 bpb (from PR #481)
 2. **XSA on all 11 layers** — exclusive self-attention, -0.002 to -0.005 bpb (from PR #503)
 3. **Value Residual (ResFormer)** — blend V vectors from layer 0, 22 params (from PR #486)
@@ -126,11 +134,16 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 5. **TrigramHash(4096)** — 3-gram context embedding (from PR #486)
 6. **Partial RoPE (16/64)**, **LN Scale**, **EMA (0.997) + SWA (every 50)**, **11 layers**
 
-**Key insight**: No submission combines ALL proven techniques. PR #486 lacks XSA. PR #503 has XSA but conservative TTT. Our edge is the combination.
+**Next step (v6.0 — n-gram upgrade)**:
+Add multi-order backoff cache (orders 2–7) + entropy-adaptive alpha on PR #771 base:
+- `α = 0.05 + 0.55 * sigmoid(2 * (H - 4.0))` where H = model entropy
+- Score-first eval only (confirmed legal by @valerio-oai)
+- Target: 1.0705 → ~0.97 bpb (estimated -0.10 from PR #727 delta vs similar base)
+- Longer term: trained gate (nn.Linear) + complementary training loss → potentially sub-0.1
 
-**Key reference PRs**: #486 (SOTA 1.0887), #490 (1.0891), #481 (1.0970, best TTT ref), #503 (1.1218, XSA ref)
+**Key reference PRs**: #727 (0.9674, multi-order backoff 2–7 reference), #741 (0.9850, simpler variant), #945 (0.0274, Order-16 + trained gate), #481 (1.0970, best TTT ref), #486 (1.0887, full stack)
 
-**Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), larger vocab (embedding cost), custom Triton kernels (poor EV), int4 without QAT (quality-destructive at this scale), eval stride=32 (exceeds time budget with 30-epoch TTT).
+**Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), larger vocab (embedding cost), custom Triton kernels (poor EV), int4 without QAT (quality-destructive at this scale), eval stride=32 (exceeds time budget with 30-epoch TTT), depth recurrence (PR #363, 1.2092 bpb — worse than baseline).
 
 ---
 
@@ -138,12 +151,14 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 | Technique | Approx Δ bpb | Status |
 |-----------|-------------|--------|
-| **AdamW TTT (30 ep, cosine, per-layer LR)** | **-0.04 to -0.06** | **In SOTA + our submission** |
+| **Multi-order N-gram cache (2–7) + entropy-adaptive α** | **~-0.10 from 1.07 base** | **Next target (PR #727, 0.9674)** |
+| **Order-16 oracle + trained gate + complementary loss** | **~-1.04 from 1.07 base** | **Stretch goal (PR #945, 0.0274)** |
+| **AdamW TTT (30 ep, cosine, per-layer LR)** | **-0.04 to -0.06** | **In SOTA + our PR #771** |
 | Sliding window eval (stride=64) | -0.032 | In SOTA |
 | TrigramHash + ValueResidual + GradQuant | -0.023 | In SOTA (PR #486) |
 | 3× MLP expansion | -0.015 | In SOTA |
 | Int6 QAT + GradQuant adaptive Int5/6/7 | -0.010 | In SOTA |
-| **XSA (all 11 layers)** | **-0.002 to -0.005** | **Our addition** |
+| **XSA (all 11 layers)** | **-0.002 to -0.005** | **In our PR #771** |
 | SmearGate + BigramHash(4096) | -0.006 | In SOTA |
 | Value Residual (ResFormer) | -0.005 to -0.017 | In SOTA |
 | 11 layers | -0.003 | In SOTA |
@@ -151,6 +166,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | Partial RoPE (16/64) + LN Scale | -0.002 | In SOTA |
 | Orthogonal init + Muon WD=0.04 | -0.003 | In SOTA |
 | LoRA TTT | **+0.004 (HURTS)** | **Abandoned** |
+| Depth recurrence | **+0.08 (HURTS)** | **Abandoned (PR #363)** |
 
 ---
 
@@ -208,8 +224,14 @@ Rules:
 15. **PR #486 baseline reproduced at 1.1249** (vs reported 1.1233). Within seed variance. This is our verified baseline.
 16. **The v7.0 incremental plan works.** Run 0→1→2→3 from PR #414 base. Each run adds ONE thing. Stop doing moonshots with 500+ new lines.
 
+### Daily Research 2026-03-27
+17. **N-gram eval cache has taken over the competition.** Scores of 0.0274 and 0.0881 bpb are achievable with Order-12/16 n-gram oracles. PR #961 confirms: architecture quality collapses to <0.001 bpb difference after cache. Architecture optimization is now secondary to n-gram cache design.
+18. **Entropy-adaptive alpha is the key to legal n-gram blending.** `α = 0.05 + 0.55 * sigmoid(2*(H-4.0))` — trust n-grams more when model is uncertain. Hindsight selection (oracle min-NLL) was disqualified; entropy-based blending is confirmed legal.
+19. **Extended TTT (>3 epochs) risks memorization.** Community analysis shows data memorization starts above ~3 epochs. Our 30-epoch config is in this regime — verify our TTT is genuinely adaptive, not memorizing.
+20. **Merged SOTA updated to 1.1194** (abaybektursun, 2026-03-23). Was 1.1228. Our PR #771 at 1.0705 is the best unmerged architecture-track submission.
+
 ## Golden Rules
 
 Every change must answer: "Does this lower val_bpb within the 16MB/10-min constraints?" If the answer is unclear, run a quick experiment on 1xH100 before investing more time. Compression and eval tricks are as valuable as architecture changes. The cheapest experiment that gives signal is the best experiment. Speed > perfection — submit early, iterate after.
 
-_Updated: 2026-03-23 (v6.0 — LoRA TTT + In-Place TTT moonshot, GPTQ disabled after Run 1 failure)_
+_Updated: 2026-03-27 (v7.0 — N-gram dominance confirmed, PR #771 submitted at 1.0705, pivot to n-gram cache)_
