@@ -112,25 +112,24 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: 1.1228 val_bpb (signalrush, 2026-03-22)
-**Best open PR (unmerged)**: 1.0865 val_bpb (PR #548 LoquiAuris, per-doc LoRA TTT, pending verification)
-**Target**: Beat merged SOTA by >=0.005 nats. If open PRs merge first, target moves.
+**Merged leaderboard SOTA**: 1.1194 val_bpb (abaybektursun, PR #549, 2026-03-23)
+**Best open PR (unmerged)**: 0.0804 val_bpb (PR #933 CacheMoney, n-gram phrase cache — legality debated)
+**Best clearly-legal open PR**: 1.0465 val_bpb (PR #758, backward-looking 7-gram + 11L XSA-all)
+**Target**: N-gram eval cache is now the meta. Pure neural submissions cannot compete. Must implement backward-looking n-gram cache.
 
-**The AdamW TTT revolution**: LoRA TTT hurts (+0.004 bpb). AdamW TTT with aggressive config gives **-0.04 to -0.06 bpb** — the single biggest unlock. Every sub-1.10 submission uses it. Config: 30 epochs, cosine LR decay, lr=0.0005, per-layer LR (MLP output 3x, input 0.5x).
+**CRITICAL — PR #771 CLOSED (2026-03-27)**: Our submission was rejected by valerio-oai for TTT rules violation: we adapted on eval tokens then scored them (adapt-then-score = illegal). Legal TTT must adapt ONLY on already-graded tokens, then score new ones.
 
-**Our approach (v5.1 — full stack)**:
-1. **AdamW TTT** (30 epochs, cosine, per-layer LR) — -0.04 to -0.06 bpb (from PR #481)
-2. **XSA on all 11 layers** — exclusive self-attention, -0.002 to -0.005 bpb (from PR #503)
-3. **Value Residual (ResFormer)** — blend V vectors from layer 0, 22 params (from PR #486)
-4. **GradQuant** — gradient-guided adaptive Int5/6/7 quantization (from PR #486)
-5. **TrigramHash(4096)** — 3-gram context embedding (from PR #486)
-6. **Partial RoPE (16/64)**, **LN Scale**, **EMA (0.997) + SWA (every 50)**, **11 layers**
+**The N-gram cache revolution**: Multi-order backoff (orders 2-7) + entropy-adaptive alpha blending dominates. Order-adaptive entropy gating (per-order thresholds) is the current frontier. PR #798 (0.5466 bpb) uses `ent_centers = {7: 3.0, 6: 3.2, 5: 3.5, 4: 3.8, 3: 4.2, 2: 4.5}`.
 
-**Key insight**: No submission combines ALL proven techniques. PR #486 lacks XSA. PR #503 has XSA but conservative TTT. Our edge is the combination.
+**Our next approach**:
+1. **11L base** (from PR #549: LeakyReLU² + XSA-all + GradQuant int6) — strong neural foundation
+2. **Backward-looking 7-gram eval cache** (PR #758 reference) — score-first, backward-looking only
+3. **Entropy-adaptive alpha** mixing: `alpha = 0.05 + 0.55 * sigmoid(2 * (H - 4.0))`
+4. *(Optional)* **Score-first TTT** adapting on already-graded chunks only
 
-**Key reference PRs**: #486 (SOTA 1.0887), #490 (1.0891), #481 (1.0970, best TTT ref), #503 (1.1218, XSA ref)
+**Key reference PRs**: #549 (merged SOTA 1.1194), #758 (1.0465, 7-gram legal), #798 (0.5466, order-adaptive), #933 (0.0804, CacheMoney — legality unclear)
 
-**Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), larger vocab (embedding cost), custom Triton kernels (poor EV), int4 without QAT (quality-destructive at this scale), eval stride=32 (exceeds time budget with 30-epoch TTT).
+**Abandoned approaches**: LoRA TTT (hurts), AdamW TTT adapting on eval tokens (ILLEGAL — PR #771 closure), eval-time GPTQ calibration (ILLEGAL), product quantization, custom Triton kernels, DeltaNet (std=0.1724 — too unstable), two-pass eval (PR #933 approach — debated legality, risk of closure).
 
 ---
 
@@ -208,8 +207,14 @@ Rules:
 15. **PR #486 baseline reproduced at 1.1249** (vs reported 1.1233). Within seed variance. This is our verified baseline.
 16. **The v7.0 incremental plan works.** Run 0→1→2→3 from PR #414 base. Each run adds ONE thing. Stop doing moonshots with 500+ new lines.
 
+### Session 4 (2026-03-27/28)
+17. **Adapt-then-score TTT is ILLEGAL.** PR #771 CLOSED. Multi-epoch AdamW TTT that adapts on eval tokens before scoring them = training on val set. Legal TTT must adapt ONLY on already-graded (previously-scored) chunks, then score new ones. The distinction: backward-looking = legal, adapt-then-score = illegal.
+18. **N-gram eval cache is the dominant technique.** Every sub-1.10 open PR uses backward-looking n-gram cache. Pure neural or pure TTT submissions are not competitive. Multi-order backoff (2-7) + entropy-adaptive alpha is the baseline; order-adaptive entropy gating (per-order thresholds) is the frontier.
+19. **DeltaNet is too unstable at this scale.** PR #1028 shows std=0.1724 across seeds (vs typical 0.001). Cannot reliably validate 3-seed claims. Do not invest GPU time until variance is solved.
+20. **Organizers close PRs in batch sweeps.** 33+ PRs closed in one day (March 24-25). Submit only after carefully verifying legality against the current rule interpretation from issue #140. When in doubt, ask valerio-oai on the PR before the 3-seed run.
+
 ## Golden Rules
 
 Every change must answer: "Does this lower val_bpb within the 16MB/10-min constraints?" If the answer is unclear, run a quick experiment on 1xH100 before investing more time. Compression and eval tricks are as valuable as architecture changes. The cheapest experiment that gives signal is the best experiment. Speed > perfection — submit early, iterate after.
 
-_Updated: 2026-03-23 (v6.0 — LoRA TTT + In-Place TTT moonshot, GPTQ disabled after Run 1 failure)_
+_Updated: 2026-03-28 (v7.0 — PR #771 closed, pivot to n-gram eval cache + backward-looking TTT)_

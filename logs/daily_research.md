@@ -1,3 +1,97 @@
+# Daily Parameter Golf Research — 2026-03-28
+
+## PR #771 STATUS: CLOSED (REJECTED — rules violation)
+
+**Rejection reason** (valerio-oai, 2026-03-27): "you're first adapting your model to the eval tokens with TTT for multiple epochs, and then reporting val numbers on those tokens you've already trained on, so this is not an allowable submission."
+
+**Root cause**: Our 30-epoch AdamW TTT adapted to eval tokens BEFORE scoring them — this is the exact violation that was also used to close 33+ other PRs on March 24-25. The distinction is: legal TTT adapts on already-GRADED tokens (previous eval chunks), illegal TTT adapts then scores the same tokens.
+
+**Action required**: PR #771 is dead. We cannot resurrect it. Next submission must use backward-looking-only TTT (adapt on previously evaluated tokens, score new ones) OR skip TTT entirely and focus on n-gram cache.
+
+---
+
+## Leaderboard (as of 2026-03-28)
+
+**Merged SOTA**: **1.1194 bpb** — PR #549 (abaybektursun, LeakyReLU² + Legal TTT + Parallel Muon, 2026-03-23)
+*(No new merges since 2026-03-23. Leaderboard unchanged for 5 days.)*
+
+**Open PR frontier** (record-eligible, unmerged):
+
+| PR# | val_bpb | Technique | Status |
+|-----|---------|-----------|--------|
+| #933 | **0.0804** | CacheMoney: 6L 256d neural + dual-pass n-gram phrase cache | Open, debated legality |
+| #834 | **0.1663** | Frozen N-gram Oracle + learned 7-expert softmax gate | Open |
+| #840 | **0.2873** | Fine-grained n-gram cache + reduced chunk size | Open |
+| #798 | **0.5466** | Order-adaptive entropy gating + BackoffNgramMixer (2-7) | Open |
+| #796 | **0.6567** | Prefill cache + EBLS | Open |
+| #727 | **0.9674** | Multi-order backoff (2-7) + entropy-adaptive alpha | **CLOSED** (eval token leak) |
+| #758 | **1.0465** | 7-gram backward-looking + 11L XSA-all + LeakyReLU² | Open, no reviews |
+| #731 | **~1.0400** | 5-expert Hedge Mixer (neural + unigram-trigram) | Open |
+| #771 | **1.0705** | Our AdamW TTT (ours) | **CLOSED** (rules violation) |
+| #1028 | **0.9984** | DeltaNet Crawler (std=0.1724!) | Open, highly unstable |
+
+**Key insight**: Merged SOTA frozen at 1.1194 while open PR frontier is at 0.08. The gap between merged and open is enormous — organizers are cautious about n-gram legality. Expect more closures before merges.
+
+---
+
+## What Changed Since 2026-03-25
+
+### Closures
+- **PR #771 CLOSED** (ours, 2026-03-27) — TTT rules violation (adapt-then-score same tokens)
+- **PR #727 CLOSED** (0.9674, n-gram multi-order backoff) — eval token leak via non-renormalized backoff
+
+### New Open PRs
+- **PR #933 (0.0804, "CacheMoney")** — tiny 4.2M param neural model + two-pass n-gram phrase cache. Author acknowledges ongoing debate about two-pass legality. No reviewer comments yet.
+- **PR #1028 (0.9984, "DeltaNet Crawler")** — DeltaNet (delta rule linear attention) + quantization. **Critically unstable**: std=0.1724, scores range 0.25-0.71 across seeds. Not reliably reproducible.
+- **PR #1006 (1.1085, JEPA + AdamW TTT)** — JEPA architecture with legal TTT. Interesting but higher than #758.
+- **PR #1005 (1.0853, Extended Compute Scaling)** — pure compute scaling analysis, non-competitive.
+- **PR #1026 (1.0945, N-gram Cache + Entropy-Adaptive Alpha)** — simpler n-gram implementation, above #758.
+- **PR #1019 (1.1147, AR Self-Gen GPTQ + XSA-all + BigramHash)** — same author as #549, adding self-gen.
+
+### Rule Enforcement Summary (March 24-27 sweep)
+Organizers closed 33+ PRs for two categories:
+1. **TTT info leakage**: adapt-then-score same tokens (our violation)
+2. **Eval-time GPTQ calibration**: using training data within eval budget (#606, #615, #626, #639, #656)
+
+**Currently legal** (confirmed): backward-looking n-gram cache, fixed-weight blending, entropy-adaptive alpha (model uncertainty only, no ground truth), backward-looking TTT on already-graded chunks.
+
+---
+
+## New Research Papers (2026-03-28 scan)
+
+| Paper | arXiv ID | Relevance | Impact Est. |
+|-------|----------|-----------|-------------|
+| **Compute-Optimal QAT** | 2509.22935 | QAT/FP ratio scales with compute; "cooldown & QAT fusion" reduces wasted tokens | +0.002-0.005 bpb via better QAT timing |
+| **DeltaNet (NeurIPS'24)** | 2406.06484 | Delta rule linear attention; hardware-parallel training via Householder matrices | Architecture risk — high instability shown in PR #1028 |
+| **Log-Linear Attention (ICLR'26)** | 2506.04761 | Extends Gated DeltaNet to log-linear state transitions | Theoretical improvement to recurrent layers; unproven at 16MB scale |
+| **N-gram Residual Learning** | 2210.14431 | Train neural model to predict residual from n-gram baseline | Could tighten neural+n-gram combo by 0.01-0.03 bpb; medium complexity |
+| **Induction-Gram** | 2411.00066 | Interpretable n-gram + induction head similarity metric | May suggest better hash function for TrigramHash/BigramHash |
+
+**No new 2026 March papers** directly applicable beyond what was tracked on 2026-03-25. Competition is moving faster than the literature.
+
+---
+
+## HuggingFace / Community
+
+- No new parameter-golf community posts found.
+- Issue #140 remains primary discussion hub — focus is n-gram cache legality debate.
+- PR #933 (CacheMoney) is generating discussion about two-pass eval legality. If approved, 0.0804 bpb would become merged SOTA — a massive gap open.
+
+---
+
+## Recommended Action
+
+**Immediate (before next GPU run)**:
+1. Study PR #758 diff (our closest legal reference at 1.0465 with backward-looking 7-gram). Port its n-gram cache into our codebase — this is the immediate target.
+2. Do NOT attempt two-pass eval (PR #933 approach) — unclear legality, risk of closure.
+3. Do NOT attempt DeltaNet — demonstrated instability (std=0.1724) makes 3-seed validation unreliable.
+
+**Next GPU experiment**: Implement backward-looking 7-gram cache (PR #758 approach) + our strong 11L base (from PR #549) + legal score-first TTT on already-graded chunks. Target: 0.85-1.00 bpb. Start with 1 seed on 8xH100 to validate, then 3 seeds if < 1.0.
+
+**Do NOT submit another TTT-only submission.** PR #771's rejection is final and the same pattern will get future PRs closed. The path forward is n-gram cache + (optionally) backward-looking TTT.
+
+---
+
 # Daily Parameter Golf Research — 2026-03-25
 
 ## Alerts
