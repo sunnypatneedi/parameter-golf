@@ -112,25 +112,26 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: 1.1228 val_bpb (signalrush, 2026-03-22)
-**Best open PR (unmerged)**: 1.0865 val_bpb (PR #548 LoquiAuris, per-doc LoRA TTT, pending verification)
-**Target**: Beat merged SOTA by >=0.005 nats. If open PRs merge first, target moves.
+**Merged leaderboard SOTA**: 1.1194 val_bpb (abaybektursun, PR #549, 2026-03-23)
+**Best open PR (unmerged)**: 1.1122 val_bpb (PR #1060 dexhunter — Coprime-Stride Loader + Full Hessian GPTQ + XSA-all 11L)
+**Our PR #771**: CLOSED (rule violation — multi-epoch TTT re-scored same eval tokens; see Lessons Learned #17)
+**Target**: Beat PR #1060 (1.1122) with a legal pure-neural stack. SOTA improvement threshold >=0.005.
 
-**The AdamW TTT revolution**: LoRA TTT hurts (+0.004 bpb). AdamW TTT with aggressive config gives **-0.04 to -0.06 bpb** — the single biggest unlock. Every sub-1.10 submission uses it. Config: 30 epochs, cosine LR decay, lr=0.0005, per-layer LR (MLP output 3x, input 0.5x).
+**CRITICAL RULE (2026-03-27 enforcement)**: N-gram eval caches are **BANNED** — hashed n-gram normalization bug invalidated 33+ PRs. Correctly normalized n-gram achieves only ~1.51 BPB (worse than baseline). Do not attempt. Multi-epoch TTT where you score then adapt is **BANNED** — score-first means score a token ONCE, then optionally adapt afterward, never re-score.
 
-**Our approach (v5.1 — full stack)**:
-1. **AdamW TTT** (30 epochs, cosine, per-layer LR) — -0.04 to -0.06 bpb (from PR #481)
-2. **XSA on all 11 layers** — exclusive self-attention, -0.002 to -0.005 bpb (from PR #503)
-3. **Value Residual (ResFormer)** — blend V vectors from layer 0, 22 params (from PR #486)
-4. **GradQuant** — gradient-guided adaptive Int5/6/7 quantization (from PR #486)
-5. **TrigramHash(4096)** — 3-gram context embedding (from PR #486)
-6. **Partial RoPE (16/64)**, **LN Scale**, **EMA (0.997) + SWA (every 50)**, **11 layers**
+**The AdamW TTT revolution**: LoRA TTT hurts (+0.004 bpb). AdamW TTT with aggressive config gives **-0.04 to -0.06 bpb** — the single biggest unlock. Legal config: score-first (score each token exactly once, never re-score), then adapt. Config: 30 epochs, cosine LR decay, lr=0.0005, per-layer LR (MLP output 3x, input 0.5x). PR #549 is the verified legal reference.
 
-**Key insight**: No submission combines ALL proven techniques. PR #486 lacks XSA. PR #503 has XSA but conservative TTT. Our edge is the combination.
+**Our approach (v8.0 — pure neural, post-n-gram-collapse)**:
+Build on PR #549 base (merged SOTA). Add in order:
+1. **Full Hessian GPTQ** (Cholesky error compensation, like PR #1060) — expected -0.005 to -0.010 bpb
+2. **XSA all 11 layers** (from PR #503) — -0.002 to -0.005 bpb
+3. **Coprime-stride data loader** (diverse batch sampling, ~20 lines, from PR #1060) — low risk
+4. **AdamW TTT (30ep, cosine, legal score-first)** — keep from PR #549
+5. **Value Residual + TrigramHash(4096) + GradQuant** — from PR #486
 
-**Key reference PRs**: #486 (SOTA 1.0887), #490 (1.0891), #481 (1.0970, best TTT ref), #503 (1.1218, XSA ref)
+**Key reference PRs**: #549 (SOTA 1.1194, legal TTT ref), #1060 (1.1122, Full GPTQ + XSA-all ref), #503 (XSA ref), #486 (Value Residual + TrigramHash + GradQuant ref)
 
-**Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), larger vocab (embedding cost), custom Triton kernels (poor EV), int4 without QAT (quality-destructive at this scale), eval stride=32 (exceeds time budget with 30-epoch TTT).
+**Abandoned approaches**: LoRA TTT (hurts), n-gram eval cache (BANNED — normalization bug), multi-epoch TTT with re-scoring (BANNED), eval-time GPTQ calibration (BANNED), product quantization (SWA-incompatible), larger vocab (embedding cost), custom Triton kernels (poor EV), int4 without QAT (quality-destructive), eval stride=32 (time budget exceeded).
 
 ---
 
@@ -138,19 +139,24 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 | Technique | Approx Δ bpb | Status |
 |-----------|-------------|--------|
-| **AdamW TTT (30 ep, cosine, per-layer LR)** | **-0.04 to -0.06** | **In SOTA + our submission** |
+| **AdamW TTT (30 ep, cosine, legal score-first)** | **-0.04 to -0.06** | **In SOTA (PR #549)** |
 | Sliding window eval (stride=64) | -0.032 | In SOTA |
 | TrigramHash + ValueResidual + GradQuant | -0.023 | In SOTA (PR #486) |
 | 3× MLP expansion | -0.015 | In SOTA |
+| **Full Hessian GPTQ** (Cholesky comp.) | **-0.005 to -0.010** | **Target (PR #1060)** |
 | Int6 QAT + GradQuant adaptive Int5/6/7 | -0.010 | In SOTA |
-| **XSA (all 11 layers)** | **-0.002 to -0.005** | **Our addition** |
+| **XSA (all 11 layers)** | **-0.002 to -0.005** | **Target (PR #1060)** |
 | SmearGate + BigramHash(4096) | -0.006 | In SOTA |
 | Value Residual (ResFormer) | -0.005 to -0.017 | In SOTA |
+| LeakyReLU² activation | ~-0.003 | In SOTA (PR #549) |
+| Coprime-stride data loader | ~-0.001 | Target (PR #1060) |
 | 11 layers | -0.003 | In SOTA |
 | EMA (0.997) + SWA (every 50) | -0.002 | In SOTA |
 | Partial RoPE (16/64) + LN Scale | -0.002 | In SOTA |
 | Orthogonal init + Muon WD=0.04 | -0.003 | In SOTA |
 | LoRA TTT | **+0.004 (HURTS)** | **Abandoned** |
+| N-gram eval cache | **BANNED** | **Invalidated 2026-03-27** |
+| Multi-epoch TTT with re-scoring | **BANNED** | **PR #771 closed for this** |
 
 ---
 
@@ -207,6 +213,12 @@ Rules:
 14. **GradQuant int5/int6 mix exceeds 16MB.** Even without int7, the artifact was 34KB over. Use uniform int6 or match PR #414's exact quantization scheme.
 15. **PR #486 baseline reproduced at 1.1249** (vs reported 1.1233). Within seed variance. This is our verified baseline.
 16. **The v7.0 incremental plan works.** Run 0→1→2→3 from PR #414 base. Each run adds ONE thing. Stop doing moonshots with 500+ new lines.
+
+### Session 4 (2026-03-29)
+17. **Our PR #771 was closed for TTT rule violation.** Multi-epoch TTT that adapts on eval tokens then re-scores them is BANNED. Legal score-first means: score each token ONCE, then optionally adapt — never re-score. PR #549 is the verified legal reference.
+18. **N-gram eval cache is DEAD.** @valerio-oai closed 33+ PRs on 2026-03-27. The hashed n-gram implementations had a normalization bug (only scored correct token, not full vocab). Correct n-gram = ~1.51 BPB (worse than baseline). Do not attempt any n-gram interpolation.
+19. **Real frontier is ~1.11 BPB, not sub-1.0.** All sub-1.0 scores in the past week were from the n-gram normalization bug. After invalidation, best legitimate open PR is PR #1060 at 1.1122. Our target is now 1.11 → sub-1.10.
+20. **Full Hessian GPTQ beats GPTQ-lite.** PR #1060 uses Cholesky error compensation for full Hessian GPTQ vs our GPTQ-lite. This is the main technique gap to close.
 
 ## Golden Rules
 
