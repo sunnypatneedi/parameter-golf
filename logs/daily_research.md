@@ -1,3 +1,134 @@
+# Daily Parameter Golf Research — 2026-03-30
+
+## PR #771 STATUS: CLOSED — TTT RULES VIOLATION
+
+**Closed by @valerio-oai on 2026-03-27.**
+
+Reason: "around line 1500 you're first adapting your model to the eval tokens with TTT for multiple epochs, and then reporting val numbers on those tokens you've already trained on."
+
+Root cause: Our AdamW TTT ran **multiple epochs on eval tokens then scored those same tokens** (adapt-then-score). Legal TTT requires **score-first**: score chunk N → update weights → never re-score.
+
+---
+
+## N-GRAM PR STATUS — MAJOR REVERSAL
+
+**All sub-1.0 n-gram PRs closed in enforcement wave (2026-03-25 to 2026-03-27).**
+
+| PR | Score | Status | Reason |
+|----|-------|--------|--------|
+| #727 | 0.9674 | **CLOSED** | Hashed n-gram caches not normalized over full vocab; look ahead to target token |
+| #741 | 0.9850 | **CLOSED** | Self-closed by author (unnormalized, issue #1017) |
+| #548 | 1.0865 | **CLOSED** | TTT scheme trains on eval tokens (same violation as #771) |
+| #758 | 1.0465 | **OPEN** | 7-gram backward-looking, no reviews yet — at risk |
+| #731 | 1.0400 | **OPEN** | 5-expert ensemble, claims score-first deferred — at risk |
+
+**Previous report (2026-03-25) said n-gram was CONFIRMED LEGAL — that was PRE-enforcement.** Issue #1017 clarified the normalization requirement after inspecting the actual implementations.
+
+### N-gram Legality (Issue #1017 — authoritative)
+
+Four conditions for valid val_bpb:
+1. **Causal**: state at token `t` reflects only tokens `< t`
+2. **Normalized**: full probability distribution over the complete official token alphabet (sum=1, all≥0). Cannot evaluate only the realized token and redistribute residual mass. Must normalize over actual tokens, not hash bins.
+3. **Score-before-update**: score chunk → update → never re-score same chunk
+4. **No latent structures**: hashed buckets / expert mixers that don't correspond to real token probabilities are illegal
+
+**Legal path**: A causal n-gram cache with full-vocab normalization (true Kneser-Ney or similar, not hashed buckets) IS legal under Track B. But implementing this correctly is non-trivial and risk of another rejection is high.
+
+---
+
+## Leaderboard
+
+- **Merged SOTA**: 1.1194 (abaybektursun, PR #549 — LeakyReLU² + Legal Score-First TTT + Parallel Muon)
+  - NOTE: Previous CLAUDE.md said 1.1228 (signalrush) — now superseded
+- **Our PR #771**: 1.0705 — **CLOSED** (invalidated)
+- **PR #548** (previously "Best open PR"): **CLOSED** (invalidated)
+- **Best legal open PR**: ~1.1099 (PR #1120 "Rascal")
+
+### Open PRs approaching SOTA (all awaiting review, none with TTT/n-gram violations known)
+
+| PR | Score | Key Techniques |
+|----|-------|----------------|
+| #1120 | 1.1099 | XSA-all, Coprime Loader, BigramHash2048, RoPE16, int6 no-GPTQ, full 600s training |
+| #1135 | 1.1116 | Fused Triton MLP (+1.8ms/step), Full Hessian GPTQ, XSA-all, BigramHash 2816×112 |
+| #1130 | 1.1140 | ResidLambdas + Split-LR + Train-Budget GPTQ + Coprime Loader |
+| #1129 | 1.1174 | CROWN-Q + GPTQ + Legal TTT |
+| #1128 | 1.1154 | SLOT architecture + LeakyReLU² + Legal TTT + Parallel Muon |
+
+---
+
+## What Changed (GitHub)
+
+**Enforcement wave (2026-03-25 to 2026-03-27)**:
+- 33+ n-gram cache PRs invalidated — hashed caches don't normalize correctly
+- Multiple TTT PRs closed for adapt-then-score violation
+- Issue #1017 published as formal rule clarification
+- All sub-1.10 open submissions from previous report are now CLOSED
+
+**Merged since last check**:
+- PR #1019: AR Self-Gen GPTQ + XSA-all + BigramHash 3072×112 — val_bpb 1.11473 (non-record, doesn't beat 1.1194 SOTA)
+
+**New open PRs with sub-SOTA scores** (all legal, no n-gram/TTT violations visible):
+- PR #1120 "Rascal" (1.1099): Coprime Loader new technique, no GPTQ (saves full training budget)
+- PR #1135 (1.1116): Fused Triton MLP kernel, Full Hessian GPTQ
+- PR #1130 (1.1140): Train-Budget GPTQ (quantization within 600s window = legal)
+
+**New techniques emerging**:
+- **Coprime Loader**: Multi-shard diversity via coprime stride. Adopted by 3+ leading PRs this week. ~20 lines. Low risk.
+- **Train-Budget GPTQ**: GPTQ calibration runs within training window (not post-training). Solves the legality issue that killed earlier PRs.
+- **Full Hessian GPTQ**: Uses Cholesky decomposition + activation-order sorting + clipping sweep. Better quality than diagonal GPTQ.
+- **Fused Triton MLP**: Custom kernel for `leaky_relu(x,0.5)^2`. Saves 1.8ms/step → more training steps in 600s.
+
+---
+
+## New Research Papers
+
+**XSA paper formally published** (arXiv:2603.09078, Apple ML Research, 2026-03-10):
+- Validates our XSA technique. Constrain attention to capture only info orthogonal to token's own value vector.
+- Gains up to 2.7B params, larger at longer sequence lengths. We're already using XSA-all.
+
+**ExoFormer / NuResFormer** (arXiv:2601.08131, Jan 2026):
+- Extends ResFormer (Value Residual) to Q, K, and gating logits simultaneously.
+- Key fix: RMSNorm on residual sources before mixing resolves distributional mismatch.
+- ~50-line addition on top of existing V residual. If ResFormer gives -0.005 to -0.017 bpb, Q/K extension may add another -0.002 to -0.005.
+- **Actionable**: Worth testing as next arch addition after fixing TTT.
+
+**End-to-End TTT** (arXiv:2512.23675):
+- MLP-only TTT (attention + norms frozen), applied to 1/4 of blocks.
+- Stability insight: frozen attention during TTT avoids instability. Our current TTT updates all params — could be causing noise.
+
+---
+
+## Recommended Action
+
+### Priority 1: Fix TTT discipline and resubmit (v8.0)
+
+The entire sub-1.07 frontier has been cleared. Merged SOTA is 1.1194. Best legal open PR is 1.1099. We are 0.041 bpb behind merged SOTA with a closed PR.
+
+**What to build**:
+Start from PR #549 base (our merged 1.1194 submission). Add ONE technique at a time:
+
+1. **Fix TTT to strict score-first** (single epoch over chunks, score → update → move on, never revisit)
+2. **Add Coprime Loader** (~20 lines, adopted by multiple leading PRs)
+3. **Add XSA-all** (proven, PR #503, formally published — we have code)
+4. **Add Full Hessian GPTQ within training budget** (not post-training)
+5. Target: **1.10 or better** (beats PR #1120 1.1099 and open SOTA)
+
+**What NOT to do**:
+- No hashed n-gram caches (illegal per #1017, risk of closure)
+- No multi-epoch TTT on eval tokens (killed PR #771)
+- No post-training GPTQ (illegal time-budget violation)
+- Don't build from sub-1.07 closed PRs (all invalidated)
+
+### Priority 2: Before GPU spend — study PR #1120 diff
+
+Coprime Loader is new and appears in multiple top submissions. WebFetch PR #1120 diff to extract exact implementation before RunPod spend.
+
+### Priority 3: ExoFormer Q/K residuals
+
+~50-line addition on top of existing Value Residual. Potential -0.002 to -0.005 bpb. Test on 1xH100 quick-run before 8xH100 investment.
+
+---
+
 # Daily Parameter Golf Research — 2026-03-25
 
 ## Alerts

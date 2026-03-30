@@ -112,23 +112,26 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: 1.1228 val_bpb (signalrush, 2026-03-22)
-**Best open PR (unmerged)**: 1.0865 val_bpb (PR #548 LoquiAuris, per-doc LoRA TTT, pending verification)
-**Target**: Beat merged SOTA by >=0.005 nats. If open PRs merge first, target moves.
+**Merged leaderboard SOTA**: 1.1194 val_bpb (abaybektursun, PR #549, 2026-03-23)
+**Best legal open PR**: 1.1099 val_bpb (PR #1120 "Rascal" — XSA-all + Coprime Loader + BigramHash2048, no GPTQ)
+**Our PR #771**: CLOSED — TTT violation (adapt-then-score). Must resubmit.
+**Target**: Beat 1.1099 (best open PR) to claim new open SOTA, or beat 1.1189 (merged SOTA - 0.005) to claim leaderboard.
+
+**ENFORCEMENT WAVE (2026-03-27)**: All sub-1.07 open PRs were closed. N-gram hashed caches ruled illegal (not normalized over full vocab). PR #771 closed for multi-epoch TTT on eval tokens. PR #548 (1.0865) closed for same. Merged SOTA unchanged at 1.1194.
 
 **The AdamW TTT revolution**: LoRA TTT hurts (+0.004 bpb). AdamW TTT with aggressive config gives **-0.04 to -0.06 bpb** — the single biggest unlock. Every sub-1.10 submission uses it. Config: 30 epochs, cosine LR decay, lr=0.0005, per-layer LR (MLP output 3x, input 0.5x).
 
-**Our approach (v5.1 — full stack)**:
-1. **AdamW TTT** (30 epochs, cosine, per-layer LR) — -0.04 to -0.06 bpb (from PR #481)
-2. **XSA on all 11 layers** — exclusive self-attention, -0.002 to -0.005 bpb (from PR #503)
-3. **Value Residual (ResFormer)** — blend V vectors from layer 0, 22 params (from PR #486)
-4. **GradQuant** — gradient-guided adaptive Int5/6/7 quantization (from PR #486)
-5. **TrigramHash(4096)** — 3-gram context embedding (from PR #486)
+**Our approach (v8.0 — resubmission after enforcement)**:
+1. **Legal Score-First TTT** (single-epoch chunks, score → update → never re-score) — base from PR #549
+2. **XSA on all 11 layers** — exclusive self-attention (arXiv:2603.09078, formally published 2026-03-10)
+3. **Coprime Loader** — multi-shard diversity, ~20 lines, adopted by top open PRs
+4. **Train-Budget GPTQ** — GPTQ calibration within 600s training window (not post-training)
+5. **Value Residual (ResFormer)** — blend V vectors from layer 0, 22 params
 6. **Partial RoPE (16/64)**, **LN Scale**, **EMA (0.997) + SWA (every 50)**, **11 layers**
 
-**Key insight**: No submission combines ALL proven techniques. PR #486 lacks XSA. PR #503 has XSA but conservative TTT. Our edge is the combination.
+**Key insight**: After enforcement wave, the frontier reset to ~1.1099. A clean legal submission combining PR #549 base + Coprime Loader + Full Hessian GPTQ should reach 1.10 or better.
 
-**Key reference PRs**: #486 (SOTA 1.0887), #490 (1.0891), #481 (1.0970, best TTT ref), #503 (1.1218, XSA ref)
+**Key reference PRs**: #549 (our merged 1.1194, legal TTT base), #1120 (1.1099, Coprime Loader + XSA-all), #1135 (1.1116, Fused Triton MLP + Full Hessian GPTQ)
 
 **Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), larger vocab (embedding cost), custom Triton kernels (poor EV), int4 without QAT (quality-destructive at this scale), eval stride=32 (exceeds time budget with 30-epoch TTT).
 
@@ -208,8 +211,16 @@ Rules:
 15. **PR #486 baseline reproduced at 1.1249** (vs reported 1.1233). Within seed variance. This is our verified baseline.
 16. **The v7.0 incremental plan works.** Run 0→1→2→3 from PR #414 base. Each run adds ONE thing. Stop doing moonshots with 500+ new lines.
 
+### Session 4 (2026-03-30)
+17. **Adapt-then-score TTT is ILLEGAL.** PR #771 was closed: multi-epoch TTT on eval tokens then scoring those same tokens = training on val set. Legal TTT = score chunk → update weights → never re-score. This is the single most important rule for TTT submissions.
+18. **Hashed n-gram caches are ILLEGAL.** Issue #1017: hashed buckets don't normalize over the full official token alphabet. Rule: must define a complete probability distribution (sum=1) over all tokens before scoring each token. Causal n-gram with full Kneser-Ney normalization IS legal but non-trivial to implement correctly.
+19. **N-gram confirmation from 2026-03-25 was premature.** The "confirmed legal" statement was based on early discussion before the implementations were inspected. Always verify legality via actual implementation inspection, not just high-level descriptions.
+20. **All sub-1.10 frontier cleared by enforcement.** The 2026-03-27 enforcement wave closed 33+ n-gram PRs and multiple TTT PRs. Merged SOTA unchanged at 1.1194. The enforcement gap creates opportunity — a clean legal implementation can now target the #1 open PR position at 1.1099.
+21. **Post-training GPTQ is illegal.** Quantization calibration must occur within the 600s training window. "Train-Budget GPTQ" (running calibration during training) is the legal approach, adopted in PRs #1130, #1135.
+22. **Coprime Loader is the new shared primitive.** Adopted by PRs #1120, #1130, #1135 (3 of the top 5 open submissions). Multi-shard diversity via coprime stride. ~20 lines. Add to any new submission.
+
 ## Golden Rules
 
 Every change must answer: "Does this lower val_bpb within the 16MB/10-min constraints?" If the answer is unclear, run a quick experiment on 1xH100 before investing more time. Compression and eval tricks are as valuable as architecture changes. The cheapest experiment that gives signal is the best experiment. Speed > perfection — submit early, iterate after.
 
-_Updated: 2026-03-23 (v6.0 — LoRA TTT + In-Place TTT moonshot, GPTQ disabled after Run 1 failure)_
+_Updated: 2026-03-30 (v7.0 — PR #771 closed, enforcement wave cleared n-gram frontier, resubmission strategy)_
