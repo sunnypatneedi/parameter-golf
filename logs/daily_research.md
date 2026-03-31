@@ -135,3 +135,98 @@ The entire competition landscape has been upended. N-gram backward-looking cache
 ---
 
 *Updated: 2026-03-26 (daily research agent)*
+
+---
+
+# Parameter Golf Daily Research - 2026-03-31
+
+## PR #771 STATUS: CLOSED — RULE VIOLATION
+
+valerio-oai ruling: *"you're first adapting your model to the eval tokens with TTT for multiple epochs, and then reporting val numbers on those tokens you've already trained on, so this is not an allowable submission."*
+
+Fix: score each chunk under frozen weights FIRST, then apply TTT update. Never re-score adapted tokens.
+
+---
+
+## N-GRAM PR STATUS
+
+| PR | val_bpb | Technique | Status |
+|----|---------|-----------|--------|
+| #727 | 0.9674 | Multi-order n-gram backoff (2-7) + entropy-adaptive alpha | **CLOSED — illegal** ("does not renormalize correctly", "leaks eval tokens") |
+| #758 | 1.0465 | 7-gram backward-looking eval cache (alpha=0.40), no TTT | OPEN, no review |
+| #731 | 1.0400 | Hedge Mixer (neural+unigram+bigram+trigram+entropy) + AdamW TTT | OPEN, no review |
+| #798 | 0.5466 | Order-adaptive entropy gating, per-order thresholds | OPEN, pending review |
+
+Issue #677: no conclusive organizer ruling on what constitutes a legal n-gram implementation.
+
+---
+
+## Leaderboard
+
+**Merged SOTA**: 1.1147 (PR #1019, abaybektursun, 2026-03-25) — Self-Gen GPTQ + XSA-all + BigramHash 3072×112
+
+| PR# | val_bpb | Technique | Legal? |
+|-----|---------|-----------|--------|
+| #798 | 0.5466 | Order-adaptive entropy n-gram gating | Pending |
+| #1184 | **0.9485** | Scylla tokenizer (998 tokens) + Full GPTQ + XSA-all + FA3 | Pending |
+| #1185 | 0.9641 | LeakyReLU² + Score-First TTT + N-gram Backoff (2-9) | Pending, disputed |
+| #731 | 1.0400 | Hedge Mixer + AdamW TTT | Pending |
+| #758 | 1.0465 | 7-gram eval cache (no TTT) | Pending |
+| #1180 | 1.0577 | SR-CM-P2Loss + residual mixing | Pending, metric review |
+| #771 | 1.0705 | AdamW TTT 30ep (ours) | **CLOSED** |
+| #1176 | 1.0914 | QK-Gain 4.0 + Muon-TTT + SLOT | Pending |
+| #1019 | 1.1147 | Self-Gen GPTQ + XSA-all + BigramHash | **MERGED SOTA** |
+
+---
+
+## New Technique Discoveries
+
+### 1. Scylla Tokenizer (PR #1184 — 0.9485 BPB)
+- 998-token custom vocabulary (vs standard sp1024 = 1024 tokens)
+- Pure architecture — no n-gram eval cache dependency
+- Achieves 0.9485 with Full GPTQ + XSA-all + FA3 on top
+- Zero legal risk (no eval-time technique concerns)
+- Requires new tokenizer artifact + data preprocessing changes
+
+### 2. Score-First TTT (Legal Protocol — our fix)
+- Record loss for each chunk under FROZEN weights
+- Then update weights via TTT on that chunk
+- Never go back and re-score adapted tokens
+- ~30-line refactor of our eval loop
+
+### 3. SLOT Eval Technique (PR #1176 — ~-0.023 bpb)
+- At eval time: optimize additive delta `δ ∈ R^{512}` at last hidden layer
+- 8 AdamW steps, lr=0.005 per chunk; model weights frozen
+- Appears fully legal (no weight updates to base model)
+- ~30 lines implementation
+
+### 4. QK-Gain 4.0 (PR #1176)
+- Query-key scaling hyperparameter = 4.0 (validated via 45-experiment sweep)
+- 1-line change, part of PR #1176's 0.023 bpb total gain
+
+### 5. Full GPTQ (PR #1019, merged SOTA)
+- Hessian + Cholesky error compensation (vs GPTQ-lite proxy Hessian)
+- Better quantization quality, ~0.010-0.020 bpb over GPTQ-lite
+- Must run within training window (eval-time GPTQ remains illegal)
+
+---
+
+## Research Papers
+
+| Paper | arXiv ID | Relevance |
+|-------|----------|-----------|
+| End-to-End TTT for Long Context | 2512.23675 | Legal TTT design: compress context into MLP weights before scoring |
+| LaCT (TTT Done Right) | 2505.23884 | Large-chunk TTT architecture reference |
+| Compute-Optimal QAT | 2509.22935 | Cooldown+QAT fusion — optimal quantization timing |
+| N-gram Is Back (Residual) | 2210.14431 | N-gram as residual learner — potentially legal framing |
+
+---
+
+## Recommended Action
+
+1. **Fix score-first TTT** (score → frozen → update protocol). Smoke-test on MLX. Resubmit.
+2. **Add SLOT** to eval loop (~-0.023 bpb, ~30 lines, appears legal).
+3. **Study PR #1184 diff** for Scylla tokenizer accessibility before GPU spend.
+4. **Hold n-gram implementation** — PR #727 closed as illegal. Wait for issue #677 ruling.
+
+*Updated: 2026-03-31*

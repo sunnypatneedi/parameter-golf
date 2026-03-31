@@ -45,15 +45,22 @@
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: 1.1194 val_bpb (abaybektursun, 2026-03-23) — LeakyReLU² + Legal Score-First TTT + Parallel Muon on PR #549 base
-**Previous SOTA**: 1.1228 (signalrush, 2026-03-22) — superseded
-**Our PR #771**: 1.0705 val_bpb — OPEN, no comments yet
+**Merged leaderboard SOTA**: 1.1147 val_bpb (abaybektursun PR #1019, 2026-03-25) — Self-Generated GPTQ Calibration + XSA-all + BigramHash 3072×112
+**Previous SOTA**: 1.1194 (abaybektursun, 2026-03-23) — superseded
+**Our PR #771**: CLOSED — rule violation (score-first TTT not implemented correctly; see Lesson #21)
+**Best legal-architecture open PR**: 0.9485 (PR #1184, Scylla tokenizer + Full GPTQ + XSA-all + FA3)
+**Best n-gram open PR (legal TBD)**: 0.5466 (PR #798, order-adaptive entropy gating)
 
-### Current Best Path (updated 2026-03-27)
-1. **Check PR #870 legality ruling daily** — if full-rescore approved, that's the entire game (0.0935 BPB).
-2. **Implement score-first two-pass N-gram** (PR #868 approach) on our PR #771 stack. Target: ~0.11 BPB.
-3. **If two-pass ruled illegal**, implement single-pass N-gram (PR #727 approach). Target: ~0.97 BPB.
-4. Architecture improvements (XSA, TTT tuning) are now secondary to eval strategy.
+### Current Best Path (updated 2026-03-31)
+1. **Fix score-first TTT** and resubmit — our base (1.0705) is strong, just needs legal eval protocol.
+2. **Add SLOT eval technique** (~-0.023 bpb, frozen-weights delta vector, PR #1176) — appears legal.
+3. **Monitor Scylla tokenizer** (PR #1184, 0.9485) — pure architecture path, zero n-gram legal risk.
+4. **N-gram implementation (PR #798/727)**: PR #727 closed as illegal. PR #798 (0.5466) pending review. Hold until issue #677 has explicit ruling.
+
+### Current Best Path (2026-03-27, mostly superseded)
+1. ~~Check PR #870 legality ruling~~ — PR #727 closed as illegal; similar approaches under review.
+2. ~~Implement score-first two-pass N-gram~~ — risky until issue #677 resolved.
+3. Architecture-first approach now safer than n-gram-first.
 
 ### Previous Best Path (superseded by N-gram revolution)
 1. Start from PR #549 merged SOTA stack.
@@ -201,8 +208,14 @@ Rules:
 19. **Extended TTT (>3 epochs) risks memorization.** Community analysis shows data memorization starts above ~3 epochs. Our 30-epoch config is in this regime — verify TTT is genuinely adaptive, not memorizing.
 20. **Merged SOTA updated to 1.1194** (abaybektursun, 2026-03-23). Was 1.1228. Our PR #771 at 1.0705 is the best unmerged architecture-track submission.
 
+### Daily Research 2026-03-31
+21. **PR #771 CLOSED for illegal TTT.** valerio-oai ruling: we adapted weights over 30 TTT epochs on val tokens, then reported scores on those same adapted tokens. The fix: score each chunk under frozen weights FIRST, then update. The score recorded must be from the frozen model, not the adapted one. This is a ~30-line eval-loop refactor.
+22. **PR #727 (0.9674 n-gram) CLOSED as illegal.** Reason: "does not renormalize correctly" + "leaks eval tokens." Issue #677 has no conclusive alternative ruling. Do not implement n-gram cache until a legal implementation is explicitly confirmed.
+23. **Scylla tokenizer (998 tokens) achieves 0.9485 BPB with zero n-gram dependency.** PR #1184 by icryo: pure architecture win via Scylla + Full GPTQ + XSA-all + FA3. This is the safest path to sub-1.0 BPB. Investigate tokenizer artifact accessibility before any GPU spend.
+24. **SLOT eval technique (~-0.023 bpb) appears legal.** Optimizes additive delta `δ ∈ R^{512}` at last hidden layer per eval chunk; 8 AdamW steps; model weights frozen. From PR #1176 (1.0914 bpb). Low implementation cost (~30 lines). Add to score-first TTT resubmission.
+
 ## Golden Rules
 
 Every change must answer: "Does this lower val_bpb within the 16MB/10-min constraints?" If the answer is unclear, run a quick experiment on 1xH100 before investing more time. Compression and eval tricks are as valuable as architecture changes. The cheapest experiment that gives signal is the best experiment. Speed > perfection — submit early, iterate after.
 
-_Updated: 2026-03-27 (v8.0 — Two-pass n-gram + extreme n-gram dominance; PR #770 legality watch)_
+_Updated: 2026-03-31 (v9.0 — PR #771 closed; score-first TTT fix required; Scylla tokenizer path; n-gram legal risk confirmed)_
