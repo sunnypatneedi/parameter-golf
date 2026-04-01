@@ -112,25 +112,28 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: 1.1228 val_bpb (signalrush, 2026-03-22)
-**Best open PR (unmerged)**: 1.0865 val_bpb (PR #548 LoquiAuris, per-doc LoRA TTT, pending verification)
-**Target**: Beat merged SOTA by >=0.005 nats. If open PRs merge first, target moves.
+**Merged leaderboard SOTA**: 1.1147 val_bpb (abaybektursun, PR #1019, 2026-03-25)
+**Best open legal PR**: 1.0914 val_bpb (PR #1176, QK-Gain 4.0 + Muon-TTT 3ep + SLOT)
+**Best open any PR**: 0.3958 (PR #1094, BackoffNgramMixer — legality disputed)
+**Target**: Beat 1.1147 merged SOTA by >=0.005 nats.
 
-**The AdamW TTT revolution**: LoRA TTT hurts (+0.004 bpb). AdamW TTT with aggressive config gives **-0.04 to -0.06 bpb** — the single biggest unlock. Every sub-1.10 submission uses it. Config: 30 epochs, cosine LR decay, lr=0.0005, per-layer LR (MLP output 3x, input 0.5x).
+**CRITICAL LEGALITY UPDATES (2026-03-27)**:
+- **PR #771 REJECTED** — Our AdamW TTT 30ep was train-then-score, not score-first. All 30-epoch TTT results are void.
+- **N-gram cache ILLEGAL** — Hashed n-gram caches ruled out (Issue #1017): produce unnormalized distributions. PRs #727, #741 closed. PRs #731, #758 still open pending ruling.
+- **Score-first TTT ≤3 epochs IS LEGAL** — PR #1176 uses 3-epoch Muon-TTT with score-first ordering.
 
-**Our approach (v5.1 — full stack)**:
-1. **AdamW TTT** (30 epochs, cosine, per-layer LR) — -0.04 to -0.06 bpb (from PR #481)
-2. **XSA on all 11 layers** — exclusive self-attention, -0.002 to -0.005 bpb (from PR #503)
-3. **Value Residual (ResFormer)** — blend V vectors from layer 0, 22 params (from PR #486)
-4. **GradQuant** — gradient-guided adaptive Int5/6/7 quantization (from PR #486)
-5. **TrigramHash(4096)** — 3-gram context embedding (from PR #486)
-6. **Partial RoPE (16/64)**, **LN Scale**, **EMA (0.997) + SWA (every 50)**, **11 layers**
+**Current approach (architecture path — no TTT legality risk)**:
+1. **4096 vocab** — larger tokenizer, +embedding params freed from compression (from PR #1218)
+2. **4× MLP expansion** — vs 3× in older SOTA (from PR #1218)
+3. **XSA on all 11 layers** — exclusive self-attention (from PRs #503, #1019)
+4. **GPTQ + WD=0.085** — Hessian-aware quantization (from PR #1218)
+5. **QK-Gain 4.0** — hyperparameter, -0.006 bpb, 45-experiment validated (from PR #1176)
+6. **Score-first Muon-TTT 3ep** — legal light TTT (from PR #1176)
+7. **SLOT δ-vector** — optimize additive δ at final hidden layer, -0.021 bpb (arXiv:2505.12392) — **VERIFY LEGALITY BEFORE GPU SPEND**
 
-**Key insight**: No submission combines ALL proven techniques. PR #486 lacks XSA. PR #503 has XSA but conservative TTT. Our edge is the combination.
+**Key reference PRs**: #1019 (merged SOTA 1.1147), #1176 (1.0914, score-first TTT + SLOT), #1218 (1.09785, no TTT clean arch)
 
-**Key reference PRs**: #486 (SOTA 1.0887), #490 (1.0891), #481 (1.0970, best TTT ref), #503 (1.1218, XSA ref)
-
-**Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), larger vocab (embedding cost), custom Triton kernels (poor EV), int4 without QAT (quality-destructive at this scale), eval stride=32 (exceeds time budget with 30-epoch TTT).
+**Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), custom Triton kernels (poor EV), int4 without QAT (quality-destructive), eval stride=32 (time budget), AdamW TTT 30ep (illegal train-then-score), n-gram hash cache (illegal normalization).
 
 ---
 
@@ -138,18 +141,24 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 | Technique | Approx Δ bpb | Status |
 |-----------|-------------|--------|
-| **AdamW TTT (30 ep, cosine, per-layer LR)** | **-0.04 to -0.06** | **In SOTA + our submission** |
+| **SLOT δ-vector (arXiv:2505.12392)** | **-0.021** | **Target — verify legality** |
+| **QK-Gain 4.0** | **-0.006** | **Target (PR #1176)** |
+| **Score-first Muon-TTT 3ep** | **-0.003** | **Legal (PR #1176)** |
+| 4096 vocab | ~-0.02 | Target (PR #1218) |
+| 4× MLP expansion | ~-0.01 | Target (PR #1218, vs 3×) |
 | Sliding window eval (stride=64) | -0.032 | In SOTA |
-| TrigramHash + ValueResidual + GradQuant | -0.023 | In SOTA (PR #486) |
-| 3× MLP expansion | -0.015 | In SOTA |
-| Int6 QAT + GradQuant adaptive Int5/6/7 | -0.010 | In SOTA |
-| **XSA (all 11 layers)** | **-0.002 to -0.005** | **Our addition** |
-| SmearGate + BigramHash(4096) | -0.006 | In SOTA |
-| Value Residual (ResFormer) | -0.005 to -0.017 | In SOTA |
+| AR Self-Gen GPTQ calibration | ~-0.005 | In merged SOTA (PR #1019) |
+| XSA (all 11 layers) | -0.002 to -0.005 | In merged SOTA |
+| 3× MLP expansion | -0.015 | In older SOTA |
+| Int6 QAT | -0.010 | In SOTA |
+| SmearGate + BigramHash(4096) | -0.006 | In older SOTA |
+| Value Residual (ResFormer) | -0.005 to -0.017 | In older SOTA |
 | 11 layers | -0.003 | In SOTA |
 | EMA (0.997) + SWA (every 50) | -0.002 | In SOTA |
 | Partial RoPE (16/64) + LN Scale | -0.002 | In SOTA |
 | Orthogonal init + Muon WD=0.04 | -0.003 | In SOTA |
+| AdamW TTT (30 ep, train-then-score) | — | **ILLEGAL (PR #771 rejected)** |
+| N-gram hash cache | — | **ILLEGAL (normalization, Issue #1017)** |
 | LoRA TTT | **+0.004 (HURTS)** | **Abandoned** |
 
 ---
@@ -208,8 +217,16 @@ Rules:
 15. **PR #486 baseline reproduced at 1.1249** (vs reported 1.1233). Within seed variance. This is our verified baseline.
 16. **The v7.0 incremental plan works.** Run 0→1→2→3 from PR #414 base. Each run adds ONE thing. Stop doing moonshots with 500+ new lines.
 
+### Session 4 (2026-04-01)
+17. **Score-first is non-negotiable for TTT.** PR #771 was rejected because we ran 30 epochs of TTT on all val tokens, THEN evaluated on those same tokens. The rule: score the token first, update on scored token, move on. Maximum ~3 epochs to stay within time budget. "Train-then-score" ordering = instant rejection.
+18. **N-gram hash cache is illegal without proper normalization.** Issue #1017 (2026-03-27) ruled all hashed n-gram caches out of the record track — they don't produce normalized probability distributions. PRs #727, #741 closed. The "CONFIRMED LEGAL" status from earlier sessions is void. Any n-gram implementation must renormalize properly on every backoff step.
+19. **Verify legality of novel eval techniques before GPU spend.** SLOT (δ-vector on final hidden layer) shows -0.021 bpb but causality concerns raised. Check Issue #140 or PR discussion for @valerio-oai ruling before investing $33+ on a GPU run.
+20. **4096 vocab + 4×MLP achieves sub-1.1 WITHOUT TTT.** PR #1218 (clarkkev) gets 1.09785 via architecture alone — 4096 vocab, 4×MLP, XSA-all, GPTQ, WD=0.085. No TTT needed. This is a low-risk, high-EV path.
+
 ## Golden Rules
 
 Every change must answer: "Does this lower val_bpb within the 16MB/10-min constraints?" If the answer is unclear, run a quick experiment on 1xH100 before investing more time. Compression and eval tricks are as valuable as architecture changes. The cheapest experiment that gives signal is the best experiment. Speed > perfection — submit early, iterate after.
 
-_Updated: 2026-03-23 (v6.0 — LoRA TTT + In-Place TTT moonshot, GPTQ disabled after Run 1 failure)_
+**NEW (2026-04-01)**: Before any eval-time technique, answer: "Does the model see the ground truth label before scoring the token?" If yes, it's illegal. If no, verify with @valerio-oai before spending GPU time.
+
+_Updated: 2026-04-01 (v7.0 — PR #771 rejected, n-gram illegal, pivoting to arch path + legal TTT)_

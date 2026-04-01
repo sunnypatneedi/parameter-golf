@@ -1,168 +1,146 @@
-# Daily Parameter Golf Research — 2026-03-25
+# Parameter Golf Daily Research — 2026-04-01
 
-## Alerts
+## CRITICAL ALERTS
 
-- **COMPETITION HAS EXPLODED.** Open PRs now reach 0.5466 bpb (PR #798). Our 1.0705 is no longer competitive among open submissions.
-- **N-gram eval cache is CONFIRMED LEGAL** — but hindsight selection (comparing n-gram vs model on ground truth) is BANNED. Fixed-weight or entropy-adaptive alpha only.
-- **Eval-time GPTQ BANNED.** Quantization calibration must happen within the training window, not eval. PRs #606, #615, #626, #639, #656 were closed for this.
-- **Multi-epoch TTT with min-loss selection BANNED.** Token adaptation before evaluation = training on val set.
-- **PR #771 still OPEN, no reviews yet.** No action required, but it will likely not merge given the score gap to new submissions.
+- **PR #771 CLOSED (REJECTED).** Our AdamW TTT 30ep submission was ruled illegal by @valerio-oai on 2026-03-27. Reason: train-then-score violation — we adapted on all val tokens for 30 epochs, then evaluated on those same tokens. Not score-first. Our pre-TTT base was ~1.145 bpb.
+- **N-GRAM CACHE RULING REVERSED.** All hashed n-gram cache approaches ruled ILLEGAL on 2026-03-27 (Issue #1017). Reason: produce unnormalized probability distributions. PRs #727, #741 closed. The "CONFIRMED LEGAL" note from 2026-03-25 is now void.
+- **Score-first TTT at ≤3 epochs IS legal.** PR #1176 uses 3-epoch Muon-TTT with score-first ordering and is under review at 1.0914 bpb.
+- **Merged SOTA moved to 1.1147** (PR #1019, from previous 1.1194).
+
+---
+
+## PR #771 STATUS: CLOSED (REJECTED — ILLEGAL TTT)
+
+- **Closed by**: @valerio-oai, 2026-03-27
+- **Reason**: "you're first adapting your model to the eval tokens with TTT for multiple epochs, and then reporting val numbers on those tokens you've already trained on" — violates score-first TTT constraint.
+- **Impact**: Our 1.0705 result is void. Base without TTT was ~1.145. Must redesign TTT to score-first.
+
+---
+
+## N-GRAM PR STATUS
+
+| PR | Score | Technique | Status |
+|----|-------|-----------|--------|
+| #727 | 0.9674 | Multi-order backoff (2-7) + entropy-adaptive alpha | **CLOSED** — normalization violation (Issue #1017) |
+| #741 | 0.9850 | Cosine TTT + multi-order n-gram cache | **CLOSED** (self-closed) — same normalization issue |
+| #731 | 1.0400 | Score-first TTT + n-gram (self-assessed legal) | **OPEN** — no reviewer comments yet |
+| #758 | 1.0465 | 11L XSA-all + 7-gram cache | **OPEN** — no reviewer comments yet |
+| #1094 | 0.3958 | BackoffNgramMixer orders 2-10, 4M buckets | **OPEN** — legality disputed by @kooshi, author updated |
+
+**WARNING**: PRs #731 and #758 still open but face same normalization risk as closed PRs. PR #1094 at 0.3958 is almost certainly going to face legal scrutiny — if it survives it would be the new all-time best.
+
+---
 
 ## Leaderboard
 
-**Merged SOTA**: 1.1194 bpb (PR #549, abaybektursun, 2026-03-23)
+### Merged Leaderboard
+| Score | Author | Technique | Date |
+|-------|--------|-----------|------|
+| **1.1147** | abaybektursun | AR Self-Gen GPTQ + XSA-all (PR #1019) | 2026-03-25 |
+| 1.1194 | abaybektursun | LeakyReLU² + Legal TTT + Parallel Muon | 2026-03-23 |
+| 1.1228 | signalrush | 11L EMA + GPTQ-lite + warmdown3500 | 2026-03-22 |
 
-**Our PR #771**: 1.0705 bpb — Open, awaiting review. Beats merged SOTA by 0.049 but far behind open PR frontier.
+**Merged SOTA**: 1.1147 (down from 1.1194, improved by 0.0047)
 
-### Top Open PRs (the real competition)
+### Best Open PRs (as of 2026-04-01)
+| PR | Score | Technique | Legal Status |
+|----|-------|-----------|-------------|
+| #1094 | **0.3958** | BackoffNgramMixer orders 2-10, sliding window | Under dispute |
+| #731 | 1.0400 | Score-first legal n-gram | Open, no ruling |
+| #758 | 1.0465 | 11L XSA-all + 7-gram | Open, no ruling |
+| **#1176** | **1.0914** | QK-Gain 4.0 + Muon-TTT 3ep + SLOT | Open, SLOT causality flagged |
+| #1218 | **1.09785** | 4096-vocab + 4×MLP + XSA-all + GPTQ | Open, no comments |
+| #1217 | 1.1027 | Context-Only SLOT + QK_GAIN=5.0 | Open |
+| #1219 | 1.1084 | Window attn + mixed seq_len | Open |
+| #1209 | 1.1064 | Full GPTQ + Score-First TTT + SLOT | Open |
 
-| PR# | val_bpb | Technique | Seeds | Status |
-|-----|---------|-----------|-------|--------|
-| #798 | **0.5466** | Order-adaptive entropy gating + BackoffNgramMixer (per-order ent_centers) | 3 | Open |
-| #796 | **0.6567** | Prefill cache + 7-gram entropy-adaptive + EBLS | ? | Open |
-| #770 | **0.6672** | 11L + eval-time multi-order n-gram cache (2-7), entropy-adaptive alpha | 1 | Open |
-| #795 | **0.8881** | 11L + order-adaptive 11-gram | ? | Open |
-| #797 | **0.8960** | 7-gram n-gram cache | ? | Open |
-| #792 | **1.0340** | 11L LeakyReLU² + XSA-all + Full GPTQ + 5-gram | ? | Open |
-| #727 | **0.9674** | Multi-order n-gram backoff (2-7) + entropy-adaptive alpha | 3 | Open |
-| #741 | **0.9850** | Cosine TTT + multi-order n-gram cache | ? | Open |
-| #758 | **1.0465** | N-gram no TTT | ? | Open |
-| #771 | **1.0705** | AdamW TTT 30ep cosine + per-layer LR (ours) | 3 | Open |
+**Our PR #771**: 1.0705 — **CLOSED/REJECTED**
 
-**Key pattern**: Every sub-1.0 submission uses n-gram eval cache. The top submissions use ORDER-ADAPTIVE entropy gating with per-order thresholds. Pure TTT without n-gram is no longer competitive.
+---
 
-## New Techniques Found
+## What Changed Since 2026-03-25
 
-### 1. Order-Adaptive Entropy Gating (PR #798 — 0.5466 bpb)
-- **Source**: Open PR, 3-seed validated
-- **Delta estimate**: -0.52 bpb vs our base (!)
-- **How it works**: Per-order entropy centers: `{7: 3.0, 6: 3.2, 5: 3.5, 4: 3.8, 3: 4.2, 2: 4.5}`. Higher-order n-grams activate at lower entropy (high confidence), lower-order at higher entropy. Builds on BackoffNgramMixer from PR #779.
-- **Evidence quality**: STRONG (3-seed, 15.99MB artifact, compliant)
-- **Legality**: Legal — score-first caching, no hindsight selection
-- **Implementation cost**: Medium — need backoff n-gram mixer + per-order entropy gating
+### GitHub
+1. **Legality wave on 2026-03-27**: All n-gram cache PRs using hashed distributions closed. Normalization requirement added to competition rules (Issue #1017). Overturns our previous "CONFIRMED LEGAL" assessment.
+2. **New PRs #1209-#1224**: Multiple sub-1.1 submissions from new participants. Key standouts:
+   - **PR #1218** (clarkkev, 1.09785): Achieves sub-1.1 with NO TTT — 4096 vocab + 4×MLP + GPTQ + XSA-all. Demonstrates the architecture path to sub-1.1.
+   - **PR #1176** (1.0914): QK-Gain 4.0 validated across 45 experiments (-0.006 bpb). Score-first 3-epoch Muon-TTT (not AdamW). SLOT adds -0.021 bpb but causality concerns raised.
+   - **PR #1217** (bigbag, 1.1027): "Context-Only SLOT" — a constrained SLOT variant that may address causality.
+3. **Depth recurrence non-record submitted**: PR #363 merged as non-record (1.2092), confirming Lesson #12.
+4. **Ternary quantization non-record** (PR #640): 1.1570 BPB from 73.7M ternary model. Not competitive but novel.
 
-### 2. BackoffNgramMixer (PR #779 foundation)
-- **Source**: Referenced by PR #798
-- **How it works**: Multi-order n-gram cache with highest-order-first cascading fallback on miss. Orders 2-7 with backoff.
-- **Delta estimate**: -0.10 to -0.16 bpb (base technique before entropy gating)
+---
 
-### 3. Entropy-Adaptive Alpha Mixing (PR #727 — 0.9674 bpb)
-- **Source**: Open PR, 3-seed validated
-- **Formula**: `alpha = 0.05 + 0.55 * sigmoid(2 * (H - 4.0))`
-- **Evidence**: Ablation shows +0.0151 bpb gain over fixed alpha=0.40
-- **This is the simpler version** — PR #798's per-order centers are the upgrade
+## New Research Papers
 
-### 4. Prefill Cache + EBLS (PR #796 — 0.6567 bpb)
-- **Source**: Open PR
-- **Unclear what EBLS is** — needs investigation. Could be a major technique.
+### Directly Applicable
 
-## Technique Legality Updates (Issue #140, 2026-03-25)
+**SLOT: Sample-specific LM Optimization at Test-time** (arXiv:2505.12392, May 2025)
+- **Technique**: Adds lightweight δ-vector to final hidden layer only. Runs few AdamW steps (8 steps, lr=0.005) minimizing cross-entropy on input prompt. Weights frozen — only δ adapts.
+- **Application**: PR #1176 reports -0.021 bpb. The key question for parameter-golf is whether "input prompt" = already-scored tokens satisfies score-first. @kooshi raised causality concerns but authors argue frozen weights + detached hiddens = legal.
+- **Implementation cost**: ~30 lines — add δ vector, run mini-optimize during sliding eval
+- **Expected impact**: -0.015 to -0.025 bpb if legal ruling confirmed
 
-1. **N-gram eval cache**: LEGAL (score-first, backward-looking only)
-2. **Hindsight selection** (comparing n-gram vs model on ground truth): **BANNED**
-3. **Eval-time GPTQ calibration**: **BANNED** (must fit in training window)
-4. **Multi-epoch TTT with min-loss selection**: **BANNED** (= training on val set)
-5. **Fixed-weight blending or entropy-adaptive alpha (model uncertainty, not labels)**: LEGAL
+**TTT Done Right / LaCT** (arXiv:2505.23884) — Already in our reference. PR #771 implemented this. The issue wasn't the paper's approach — it was our eval ordering bug (train-then-score instead of score-first).
 
-## Recommended Action Plan
+**Layer-wise QAT for SLMs — LieQ** (arXiv:2508.03332, Aug 2025)
+- **Technique**: Mixed-precision across layers based on information-effectiveness metric. Keeps uniform bit-width within each layer (hardware-friendly). int7 on high-saliency layers, int5 on redundant layers.
+- **Application**: Could recover 0.002-0.004 bpb vs uniform int6, or free ~150KB for extra capacity.
+- **Implementation cost**: ~60 lines to compute layer saliency + assign bits
 
-### Priority 1: Implement Order-Adaptive Entropy Gating N-gram Cache on our base
+### General Context (Lower Priority)
+- **N-gram Residual Learning** (arXiv:2210.14431): Train neural LM to fit residual over n-gram. Architecturally interesting but requires training-time changes and n-gram normalization (same legal issue).
+- **EfficientQAT** (arXiv:2407.11062): Block-wise QAT. More expensive than our current approach but useful if we need to push quantization quality.
 
-**Theory of victory**: PR #798 achieves 0.5466 on a standard 11L base. Our base (1.0705 with AdamW TTT) is stronger than average. Adding order-adaptive n-gram should yield 0.50-0.60 bpb range. Even a conservative implementation (just multi-order backoff + basic entropy-adaptive alpha like PR #727) should get us to 0.85-0.95 bpb.
+---
 
-**Implementation plan**:
-1. Start with PR #727's approach (simpler): multi-order backoff (2-7) + `alpha = 0.05 + 0.55 * sigmoid(2 * (H - 4.0))`
-2. Then upgrade to PR #798's per-order entropy centers
-3. Ensure score-first compliance (cache only from already-evaluated tokens)
+## HuggingFace / Community
 
-**We already have v9a/v9b code locally** that targets this. Key files:
-- `records/track_10min_16mb/2026-03-25_sunnypatneedi_v2/train_gpt_v9a_11gram_no_ttt.py`
-- `records/track_10min_16mb/2026-03-25_sunnypatneedi_v2/train_gpt_v9b_11gram_mini_ttt.py`
+- No parameter-golf-specific HuggingFace posts found.
+- GitHub Issue #140 remains the primary community hub. As of 2026-04-01 latest notes: official SOTA 1.1147, best pending 0.3958 (PR #1094, legality TBD), best standard-stack score 1.0914 (PR #1176).
+- **EBLS from PR #796** (seen in previous report): Status unknown — PR not checked today, n-gram wave likely closed it.
 
-**RunPod commands** (after pod creation on 8xH100 SXM):
-```bash
-# Setup
-pip install zstandard --break-system-packages
-python3 -c "import zstandard; print('zstd OK')"
+---
 
-# Clone and checkout
-cd /workspace
-git clone https://github.com/sunnypatneedi/parameter-golf.git
-cd parameter-golf
+## Recommended Action
 
-# Copy the n-gram version to test
-cp records/track_10min_16mb/2026-03-25_sunnypatneedi_v2/train_gpt_v9a_11gram_no_ttt.py train_gpt.py
+### Immediate (before next GPU session)
 
-# 1-seed smoke test
-torchrun --standalone --nproc_per_node=8 train_gpt.py
+1. **Verify SLOT legality**: Check Issue #1017 or comment thread on PR #1176 for @valerio-oai ruling on SLOT. If legal, SLOT is -0.021 bpb for ~30 lines of code. This is the highest-ROI unlock on the table.
 
-# Check artifact size
-python3 -c "import os; s=os.path.getsize('artifact.tar.gz'); print(f'{s:,} bytes ({s/1e6:.2f} MB) — {\"PASS\" if s < 16_000_000 else \"FAIL\"}')"
+2. **Study PR #1218 diff**: clarkkev achieves 1.09785 with NO TTT — just 4096-vocab + 4×MLP + XSA-all + GPTQ + WD=0.085. This is a clean architecture path that avoids ALL the TTT legality risk. Read their exact config.
 
-# If seed 42 bpb < 1.0 AND artifact < 16MB, run 3-seed validation
-# (use the run_3seeds.sh pattern from PR #771 submission)
-```
+3. **Fix our TTT to score-first**: PR #771 was illegal because we ran all epochs THEN scored. The fix is: score token → record loss → update on scored token → move to next token. At 3 epochs this is legal per PR #1176. Do NOT run 30 epochs (budget blowout + likely still illegal).
 
-**Expected result**: 0.85-1.00 bpb (conservative), 0.55-0.75 (if per-order gating works well)
-**Abort criteria**: If seed 42 bpb > 1.05, the n-gram implementation has a bug — debug before spending more.
-**Estimated cost**: $8 (1-seed) to $33 (3-seed) on 8xH100
+### Next GPU Experiment Priority
 
-### Priority 2: Study PR #798 implementation in detail
+**Option A (lowest risk)**: Port PR #1218 approach — 4096 vocab + 4×MLP + XSA-all + GPTQ + WD=0.085. No TTT. Expected: ~1.098 bpb. Cost: $8 (1-seed smoke test).
 
-Before GPU spend, WebFetch the PR #798 diff to understand the exact BackoffNgramMixer + entropy gating code. Port the key logic into our v9a/v9b scripts. The per-order entropy centers are the key innovation:
-```python
-ent_centers = {7: 3.0, 6: 3.2, 5: 3.5, 4: 3.8, 3: 4.2, 2: 4.5}
-```
+**Option B (higher upside)**: Score-first 3-epoch TTT + QK-Gain 4.0 + SLOT (if legal) on our existing 11L base. Expected: ~1.09 bpb. Risk: SLOT legality still uncertain.
 
-### Priority 3: Investigate "EBLS" technique from PR #796
+**Do NOT**: Attempt n-gram cache until normalization issue solved (i.e., proper renormalization on every backoff step). The approach is powerful but every implementation tried so far has been illegal.
 
-PR #796 achieves 0.6567 with "Prefill Cache + EBLS". EBLS is unknown — could be a significant technique worth understanding.
+### Technique Stack for Next Submission
 
-## Code Changes Made
+| Technique | Source | Expected Δbpb | Legal Status |
+|-----------|--------|--------------|-------------|
+| 4096-vocab | PR #1218 | ~-0.02 | Legal |
+| 4×MLP | PR #1218 | ~-0.01 | Legal |
+| XSA-all 11L | Multiple | -0.002 to -0.005 | Legal |
+| GPTQ + WD=0.085 | PR #1218 | ~-0.01 | Legal |
+| QK-Gain 4.0 | PR #1176 | -0.006 | Legal |
+| Score-first TTT 3ep | PR #1176 | -0.003 | Legal |
+| SLOT (δ-vector) | PR #1176 | -0.021 | VERIFY FIRST |
 
-No new code written in this report cycle. Existing local versions v9a (11gram no TTT) and v9b (11gram mini TTT) were already prepared in previous session.
+**Conservative target** (no SLOT): ~1.08 bpb
+**Optimistic target** (with SLOT): ~1.06 bpb
 
-## Papers & Community
+---
 
-### Relevant Papers
+## Updated Strategy Summary
 
-**Directly applicable to our competition work:**
+The competition has bifurcated:
+- **N-gram path** (0.39-1.04 bpb): Powerful but most implementations illegal due to normalization. PRs #731, #758 still open — wait for ruling.
+- **Architecture/clean path** (1.09-1.11 bpb): No legality risk. PR #1218 shows 1.09785 without TTT. PR #1176 shows 1.0914 with light TTT + SLOT.
 
-- **SLOT: Sample-specific LM Optimization at Test-time (arXiv:2505.12392)**: Adds a lightweight parameter vector δ to the final hidden layer, optimized on the input prompt via cross-entropy. Few optimization steps, caches last-layer features. **Potential unlock**: This is a legal TTT variant — adapts per-sample at test time by minimizing loss on the prompt itself (backward-looking). Could complement n-gram cache. The "light-weight δ on final hidden layer" is architecturally different from our current full-model TTT. Worth investigating whether SLOT-style adaptation + n-gram outperforms AdamW TTT + n-gram.
-
-- **N-gram Residual Learning (arXiv:2210.14431)**: Trains a neural LM to fit the *residual* between an n-gram LM and the true distribution, rather than the full distribution. The neural model only needs to learn what the n-gram can't predict. **Potential unlock**: If we trained our base model with n-gram residual awareness, the neural+n-gram combination at eval time would be tighter. This is a training-time change, not just eval-time — could be worth 0.01-0.03 bpb over naive interpolation. Medium implementation cost.
-
-- **LaCT / TTT Done Right (arXiv:2505.23884)**: ICLR 2026 Oral. Already in our technique reference — cosine + per-layer LR recipe. Our PR #771 implements this.
-
-- **E2E TTT (arXiv:2512.23675)**: Meta-learns TTT initialization at train time. Interesting but the meta-learning phase likely exceeds our 10-min training budget. Not directly applicable.
-
-**Quantization-specific (for squeezing more model into 16MB):**
-
-- **LieQ (arXiv:2508.03332)**: Layer-wise mixed-precision PTQ for small LMs. Keeps uniform bit-width within each layer but mixes precision across layers based on an information-effectiveness metric. **Potential unlock**: Instead of uniform int6 everywhere, use int7 on critical layers and int5 on redundant ones. Could recover 0.002-0.005 bpb at same artifact size, or free ~200KB for a larger n-gram cache. Low implementation cost.
-
-- **pQuant (arXiv:2602.22592)**: Decoupled linear QAT for sub-2-bit. Aggressive but our int6 regime is higher — less applicable. Note for future if we need to go lower.
-
-- **SLMQuant (arXiv:2511.13023)**: Systematic benchmark showing SLMs are uniquely sensitive to quantization. Confirms our Lesson #8 — small models need careful quant. Validates our approach of QAT over PTQ.
-
-**Expert mixing / ensemble theory:**
-
-- **Lossless Compression via Next-Token Prediction (arXiv:2505.06297)**: Uses LLM predictions + arithmetic coding for lossless compression. The ensemble approach (multiple predictors) is conceptually what n-gram + neural model does. Confirms the competition meta is sound.
-
-- **PEER: Parameter Efficient Expert Retrieval**: Uses product keys to route through millions of single-neuron experts. Interesting architecture but likely too expensive for our 10-min budget. File away for future.
-
-### Community
-
-- **HuggingFace**: No parameter-golf-specific community posts. TTT and test-time scaling blog posts reference the E2E TTT paper but no novel techniques.
-- **DeepWiki (openai/parameter-golf)**: Has a wiki-style breakdown of the competition but blocked for direct fetch. Could contain technique cataloging.
-- **Reddit**: No significant parameter golf threads found. GitHub Issue #140 remains the primary community discussion hub.
-- **Competition coverage**: algo-mania.com and aitoolsclub.com have general awareness articles, no new techniques.
-
-## Strategic Assessment
-
-**Our position**: Our 1.0705 beats the merged SOTA (1.1194) but is ranked ~10th among open PRs. The competition has moved to n-gram territory. Without n-gram cache, we cannot compete.
-
-**The meta**: Order-adaptive entropy gating + multi-order n-gram backoff (2-7 or 2-11) is the dominant technique. TTT is a secondary boost. The winning formula appears to be: strong 11L base + n-gram cache + entropy-adaptive mixing.
-
-**Next session priority**: Study PR #798 diff → port order-adaptive entropy gating to our base → test on RunPod → submit.
-
-**Budget note**: At $33/attempt, we have ~10 attempts left before deadline. Each attempt should now include n-gram cache. Pure architecture or TTT experiments without n-gram are no longer worth GPU time.
+Our plan: Build on the architecture path first (fast, cheap, low-risk), then add score-first TTT + SLOT once SLOT legality is confirmed.
