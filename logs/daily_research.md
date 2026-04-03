@@ -1,3 +1,144 @@
+# Parameter Golf Daily Research — 2026-04-03
+
+---
+
+## PR #771 STATUS: CLOSED (REJECTED — CONFIRMED)
+
+Rejected by @valerio-oai on 2026-03-27. Reason: train-then-score violation — AdamW TTT 30ep adapted on all val tokens, then scored the same tokens. Illegal. Pre-TTT base was ~1.145 bpb. **No appeal possible.** This is recorded in our CLAUDE.md and strategy has pivoted.
+
+---
+
+## N-GRAM PR STATUS
+
+| PR | Score | Technique | Status |
+|----|-------|-----------|--------|
+| #727 | 0.9674 | Hashed n-gram eval cache | **CLOSED** — illegal normalization (2026-03-27) |
+| #741 | — | Hashed n-gram cache (variant) | **CLOSED** — same ruling |
+| #758 | 1.0465 | 7-gram backward-looking eval cache | **OPEN** — no reviews yet |
+| #731 | 1.0400 | Score-first n-gram + hedging | **OPEN** — no reviews, author claims legality |
+
+PRs #758 and #731 remain open with no official rulings from @valerio-oai as of 2026-04-03.
+
+---
+
+## Leaderboard
+
+| Track | Score | Author | PR | Date |
+|-------|-------|--------|-----|------|
+| **Merged SOTA** | **1.1147** | abaybektursun | #1019 | 2026-03-25 |
+| Best open (legal?) | **0.9462** | anthony-maio | #1303 | 2026-04-03 |
+| Best open (lower risk) | **1.0819** | MatoTeziTanka | #1289 | 2026-04-03 |
+| Our PR #771 | 1.0705 | — | #771 | CLOSED/REJECTED |
+
+**Merged SOTA UNCHANGED** from last session (still PR #1019 at 1.1147). The git log confirms no new merges beyond PR #1019.
+
+---
+
+## What Changed (GitHub) — 2026-04-03 Activity
+
+A flood of new PRs submitted today. Key findings:
+
+### HEADLINE: PR #1303 claims 0.9462 bpb (SLOT-16 + QK-Gain 4.0 + XSA-11)
+- Author: anthony-maio
+- Techniques: Causal SLOT-16, QK-Gain 4.0, XSA all 11 layers, LeakyReLU² + lzma base
+- SLOT implementation: per-sample δ [bsz, 1, 512] + logit bias [bsz, 1, 1024], 16 AdamW steps, cosine LR 0.008→0.0008
+- Key causality claim: "scored-position masking (last stride=64 tokens per non-first window)" — only optimizes on tokens already evaluated in prior windows
+- Eval time: ~384s total (within 600s budget)
+- Artifact: 15.74–15.83 MB (within limit)
+- **Status: OPEN, no reviews yet — legality UNCONFIRMED**
+- RISK: msisovic contested SLOT causality in Issue #1240, calling standard SLOT a "100% violation rate." PR #1303's scored-position masking may resolve this, but needs @valerio-oai ruling.
+
+### PR #1306: Causal SLOT + Pre-quant TTT (1.0846 bpb) — resouer
+- **Causal SLOT** (vs standard SLOT): restricts δ optimization to "context-only positions — tokens already scored in previous windows." Yields **-0.009 bpb**. Explicitly addresses the Issue #1240 violation.
+- **Pre-quant AdamW TTT**: Apply TTT to full-precision weights BEFORE GPTQ quantization, not after. 6 epochs, -0.022 bpb. Author reports post-quant SGD failed in 25 documented cases.
+- Eval time: ~551s. Artifact: ~15.95 MB.
+- **Status: OPEN, no reviews. Lower legality risk than standard SLOT.**
+
+### Other notable open PRs today:
+| PR | Score | Technique | Notes |
+|----|-------|-----------|-------|
+| #1289 | 1.0819 | PROTEUS v1.6 (Scylla + Parallel) | Open, no reviews |
+| #1296 | 1.0897 | SP4096 + Depth Recurrence + Parallel | Open |
+| #1291 | 1.0925 | Vocab4096 + MLP4.0x + SLOT | Matches our arch target |
+| #1286 | 1.0963 | Lucky IV | Open |
+| #1285 | 1.0912 | MuonEq-R + Depth Recurrence + GPTQ | Open |
+| #1176 | 1.0914 | QK-Gain 4.0 + Muon-TTT 3ep + SLOT | Disputed SLOT legality |
+| #1218 | 1.0979 | Vocab4096 + MLP4x + GPTQ (no TTT) | Our arch target base |
+| #1302 | 1.1079 | Split-LR + N-gram Agreement + GPTQ | n-gram agreement (different from cache) |
+
+### SLOT legality status (Issue #1240 summary):
+- Standard SLOT (PR #1176): δ optimized on all positions including unseen future tokens → causality violation, 100% violation rate documented
+- Causal SLOT (PR #1306): δ only on already-scored tokens → causality preserved, -0.009 bpb
+- PR #1303 scored-position masking: similar to Causal SLOT, claims 0.9462 bpb — much larger gain, mechanism needs verification
+- **No @valerio-oai ruling yet on Causal SLOT or PR #1303's approach**
+
+---
+
+## New Research Papers
+
+### SLOT (arXiv:2505.12392) — Yang Hu et al., Westlake University, May 2025
+- Per-sample δ-vector added to final hidden layer before output head; optimized at test-time via CE loss on input prompt
+- **Relevance**: Directly implemented in PRs #1176, #1303, #1306. The -0.021 bpb gain (standard SLOT) reduces to -0.009 (causal variant). Must verify legal causal implementation.
+- **Implementation complexity**: ~50 lines. Low.
+
+### LaCT: Test-Time Training Done Right (arXiv:2505.23884) — Zhang et al., May 2025
+- Large chunk TTT (2K–1M tokens), GPU utilization up to 70% vs <5% for small-chunk TTT
+- Nonlinear state size up to 40% of model params
+- **Relevance**: Could enable more efficient score-first TTT (faster epochs = more epochs in budget). Currently only PRs #481/#503 use small-chunk TTT. LaCT could enable 3+ legal epochs within 10-min budget.
+- **Implementation complexity**: "few dozen lines of pure PyTorch." Medium (needs architecture integration).
+
+### pQuant: Decoupled Linear QAT (arXiv:2602.22592) — Feb 2026
+- Low-bit QAT via decoupled linear quantization; targets sub-4-bit LLMs
+- **Relevance**: Our GPTQ currently at int6. pQuant might enable int5/int4 with lower quality loss, freeing artifact bytes for more parameters.
+- **Implementation complexity**: High (replaces quantization core).
+
+### EfficientQAT (arXiv:2407.11062) — July 2024
+- Block-wise QAT + end-to-end quantization parameter training with 4096 calibration samples
+- **Relevance**: Basis for our current GPTQ approach. Already incorporated indirectly via PR #1019.
+
+---
+
+## HuggingFace / Community Discoveries
+
+- No new relevant HuggingFace blog posts found specific to parameter-constrained LM competition.
+- "Pre-quant TTT" (PR #1306) is a novel community discovery: TTT before quantization avoids quantization noise in gradients. 6 epochs at full precision → then GPTQ. Worth tracking.
+- Multiple teams converging on Vocab4096 + 4×MLP + XSA-all architecture (PRs #1218, #1291, #1287) — confirms this is the right base.
+
+---
+
+## Recommended Action
+
+**Priority order for next GPU session:**
+
+1. **FIRST: Verify SLOT legality.** Check Issue #1240 for @valerio-oai ruling on Causal SLOT before any GPU spend. If no ruling, post a direct question tagging @valerio-oai with the PR #1306 implementation (context-only positions). Do NOT spend GPU time on SLOT until confirmed legal.
+
+2. **Build PR #1218 arch base (low risk, high EV):** Vocab4096 + 4×MLP + XSA-all + GPTQ + WD=0.085 = 1.0979 bpb. This is confirmed by PR #1291 at 1.0925. Start here — it beats merged SOTA by 0.017 nats with no legality risk.
+
+3. **Add QK-Gain 4.0 on top of #2:** PR #1176 documents -0.006 bpb from 45-experiment sweep. Low risk, small but validated gain.
+
+4. **Add score-first Muon-TTT 3ep on top of #3:** Legal per PR #1176's approach. -0.003 bpb. Keep within time budget.
+
+5. **If Causal SLOT approved:** Add Causal SLOT (PR #1306 implementation, scored-position masking only). Expected -0.009 bpb (causal) vs -0.021 (standard). 
+
+6. **If Pre-quant TTT passes legality review:** PR #1306 reports -0.022 bpb from AdamW TTT before GPTQ. Novel, no flags yet. Could stack with QK-Gain + arch improvements to reach sub-1.05.
+
+7. **Target ceiling:** PR #1303 at 0.9462 bpb if scored-position SLOT approved. Even with causal-only SLOT and full arch path, sub-1.07 bpb seems achievable within legal bounds.
+
+---
+
+## Session Notes
+
+- Merged leaderboard moved last on 2026-03-25 (PR #1019). No merges in 9 days.
+- Multiple sub-1.1 open PRs suggest next merge wave is coming. Submit before the merge flood closes the gap.
+- Pre-quant TTT (PR #1306) is the most novel technique seen today. Watch for reviews.
+- Competition deadline: April 30, 2026. 27 days remaining.
+
+---
+
+*Updated: 2026-04-03 (daily research agent)*
+
+---
+
 # Parameter Golf Daily Research — 2026-04-01
 
 ## CRITICAL ALERTS
@@ -6,141 +147,3 @@
 - **N-GRAM CACHE RULING REVERSED.** All hashed n-gram cache approaches ruled ILLEGAL on 2026-03-27 (Issue #1017). Reason: produce unnormalized probability distributions. PRs #727, #741 closed. The "CONFIRMED LEGAL" note from 2026-03-25 is now void.
 - **Score-first TTT at ≤3 epochs IS legal.** PR #1176 uses 3-epoch Muon-TTT with score-first ordering and is under review at 1.0914 bpb.
 - **Merged SOTA moved to 1.1147** (PR #1019, from previous 1.1194).
-
----
-
-## PR #771 STATUS: CLOSED (REJECTED — ILLEGAL TTT)
-
-- **Closed by**: @valerio-oai, 2026-03-27
-- **Reason**: "you're first adapting your model to the eval tokens with TTT for multiple epochs, and then reporting val numbers on those tokens you've already trained on" — violates score-first TTT constraint.
-- **Impact**: Our 1.0705 result is void. Base without TTT was ~1.145. Must redesign TTT to score-first.
-
----
-
-## N-GRAM PR STATUS
-
-| PR | Score | Technique | Status |
-|----|-------|-----------|--------|
-| #727 | 0.9674 | Multi-order backoff (2-7) + entropy-adaptive alpha | **CLOSED** — normalization violation (Issue #1017) |
-| #741 | 0.9850 | Cosine TTT + multi-order n-gram cache | **CLOSED** (self-closed) — same normalization issue |
-| #731 | 1.0400 | Score-first TTT + n-gram (self-assessed legal) | **OPEN** — no reviewer comments yet |
-| #758 | 1.0465 | 11L XSA-all + 7-gram cache | **OPEN** — no reviewer comments yet |
-| #1094 | 0.3958 | BackoffNgramMixer orders 2-10, 4M buckets | **OPEN** — legality disputed by @kooshi, author updated |
-
-**WARNING**: PRs #731 and #758 still open but face same normalization risk as closed PRs. PR #1094 at 0.3958 is almost certainly going to face legal scrutiny — if it survives it would be the new all-time best.
-
----
-
-## Leaderboard
-
-### Merged Leaderboard
-| Score | Author | Technique | Date |
-|-------|--------|-----------|------|
-| **1.1147** | abaybektursun | AR Self-Gen GPTQ + XSA-all (PR #1019) | 2026-03-25 |
-| 1.1194 | abaybektursun | LeakyReLU² + Legal TTT + Parallel Muon | 2026-03-23 |
-| 1.1228 | signalrush | 11L EMA + GPTQ-lite + warmdown3500 | 2026-03-22 |
-
-**Merged SOTA**: 1.1147 (down from 1.1194, improved by 0.0047)
-
-### Best Open PRs (as of 2026-04-01)
-| PR | Score | Technique | Legal Status |
-|----|-------|-----------|-------------|
-| #1094 | **0.3958** | BackoffNgramMixer orders 2-10, sliding window | Under dispute |
-| #731 | 1.0400 | Score-first legal n-gram | Open, no ruling |
-| #758 | 1.0465 | 11L XSA-all + 7-gram | Open, no ruling |
-| **#1176** | **1.0914** | QK-Gain 4.0 + Muon-TTT 3ep + SLOT | Open, SLOT causality flagged |
-| #1218 | **1.09785** | 4096-vocab + 4×MLP + XSA-all + GPTQ | Open, no comments |
-| #1217 | 1.1027 | Context-Only SLOT + QK_GAIN=5.0 | Open |
-| #1219 | 1.1084 | Window attn + mixed seq_len | Open |
-| #1209 | 1.1064 | Full GPTQ + Score-First TTT + SLOT | Open |
-
-**Our PR #771**: 1.0705 — **CLOSED/REJECTED**
-
----
-
-## What Changed Since 2026-03-25
-
-### GitHub
-1. **Legality wave on 2026-03-27**: All n-gram cache PRs using hashed distributions closed. Normalization requirement added to competition rules (Issue #1017). Overturns our previous "CONFIRMED LEGAL" assessment.
-2. **New PRs #1209-#1224**: Multiple sub-1.1 submissions from new participants. Key standouts:
-   - **PR #1218** (clarkkev, 1.09785): Achieves sub-1.1 with NO TTT — 4096 vocab + 4×MLP + GPTQ + XSA-all. Demonstrates the architecture path to sub-1.1.
-   - **PR #1176** (1.0914): QK-Gain 4.0 validated across 45 experiments (-0.006 bpb). Score-first 3-epoch Muon-TTT (not AdamW). SLOT adds -0.021 bpb but causality concerns raised.
-   - **PR #1217** (bigbag, 1.1027): "Context-Only SLOT" — a constrained SLOT variant that may address causality.
-3. **Depth recurrence non-record submitted**: PR #363 merged as non-record (1.2092), confirming Lesson #12.
-4. **Ternary quantization non-record** (PR #640): 1.1570 BPB from 73.7M ternary model. Not competitive but novel.
-
----
-
-## New Research Papers
-
-### Directly Applicable
-
-**SLOT: Sample-specific LM Optimization at Test-time** (arXiv:2505.12392, May 2025)
-- **Technique**: Adds lightweight δ-vector to final hidden layer only. Runs few AdamW steps (8 steps, lr=0.005) minimizing cross-entropy on input prompt. Weights frozen — only δ adapts.
-- **Application**: PR #1176 reports -0.021 bpb. The key question for parameter-golf is whether "input prompt" = already-scored tokens satisfies score-first. @kooshi raised causality concerns but authors argue frozen weights + detached hiddens = legal.
-- **Implementation cost**: ~30 lines — add δ vector, run mini-optimize during sliding eval
-- **Expected impact**: -0.015 to -0.025 bpb if legal ruling confirmed
-
-**TTT Done Right / LaCT** (arXiv:2505.23884) — Already in our reference. PR #771 implemented this. The issue wasn't the paper's approach — it was our eval ordering bug (train-then-score instead of score-first).
-
-**Layer-wise QAT for SLMs — LieQ** (arXiv:2508.03332, Aug 2025)
-- **Technique**: Mixed-precision across layers based on information-effectiveness metric. Keeps uniform bit-width within each layer (hardware-friendly). int7 on high-saliency layers, int5 on redundant layers.
-- **Application**: Could recover 0.002-0.004 bpb vs uniform int6, or free ~150KB for extra capacity.
-- **Implementation cost**: ~60 lines to compute layer saliency + assign bits
-
-### General Context (Lower Priority)
-- **N-gram Residual Learning** (arXiv:2210.14431): Train neural LM to fit residual over n-gram. Architecturally interesting but requires training-time changes and n-gram normalization (same legal issue).
-- **EfficientQAT** (arXiv:2407.11062): Block-wise QAT. More expensive than our current approach but useful if we need to push quantization quality.
-
----
-
-## HuggingFace / Community
-
-- No parameter-golf-specific HuggingFace posts found.
-- GitHub Issue #140 remains the primary community hub. As of 2026-04-01 latest notes: official SOTA 1.1147, best pending 0.3958 (PR #1094, legality TBD), best standard-stack score 1.0914 (PR #1176).
-- **EBLS from PR #796** (seen in previous report): Status unknown — PR not checked today, n-gram wave likely closed it.
-
----
-
-## Recommended Action
-
-### Immediate (before next GPU session)
-
-1. **Verify SLOT legality**: Check Issue #1017 or comment thread on PR #1176 for @valerio-oai ruling on SLOT. If legal, SLOT is -0.021 bpb for ~30 lines of code. This is the highest-ROI unlock on the table.
-
-2. **Study PR #1218 diff**: clarkkev achieves 1.09785 with NO TTT — just 4096-vocab + 4×MLP + XSA-all + GPTQ + WD=0.085. This is a clean architecture path that avoids ALL the TTT legality risk. Read their exact config.
-
-3. **Fix our TTT to score-first**: PR #771 was illegal because we ran all epochs THEN scored. The fix is: score token → record loss → update on scored token → move to next token. At 3 epochs this is legal per PR #1176. Do NOT run 30 epochs (budget blowout + likely still illegal).
-
-### Next GPU Experiment Priority
-
-**Option A (lowest risk)**: Port PR #1218 approach — 4096 vocab + 4×MLP + XSA-all + GPTQ + WD=0.085. No TTT. Expected: ~1.098 bpb. Cost: $8 (1-seed smoke test).
-
-**Option B (higher upside)**: Score-first 3-epoch TTT + QK-Gain 4.0 + SLOT (if legal) on our existing 11L base. Expected: ~1.09 bpb. Risk: SLOT legality still uncertain.
-
-**Do NOT**: Attempt n-gram cache until normalization issue solved (i.e., proper renormalization on every backoff step). The approach is powerful but every implementation tried so far has been illegal.
-
-### Technique Stack for Next Submission
-
-| Technique | Source | Expected Δbpb | Legal Status |
-|-----------|--------|--------------|-------------|
-| 4096-vocab | PR #1218 | ~-0.02 | Legal |
-| 4×MLP | PR #1218 | ~-0.01 | Legal |
-| XSA-all 11L | Multiple | -0.002 to -0.005 | Legal |
-| GPTQ + WD=0.085 | PR #1218 | ~-0.01 | Legal |
-| QK-Gain 4.0 | PR #1176 | -0.006 | Legal |
-| Score-first TTT 3ep | PR #1176 | -0.003 | Legal |
-| SLOT (δ-vector) | PR #1176 | -0.021 | VERIFY FIRST |
-
-**Conservative target** (no SLOT): ~1.08 bpb
-**Optimistic target** (with SLOT): ~1.06 bpb
-
----
-
-## Updated Strategy Summary
-
-The competition has bifurcated:
-- **N-gram path** (0.39-1.04 bpb): Powerful but most implementations illegal due to normalization. PRs #731, #758 still open — wait for ruling.
-- **Architecture/clean path** (1.09-1.11 bpb): No legality risk. PR #1218 shows 1.09785 without TTT. PR #1176 shows 1.0914 with light TTT + SLOT.
-
-Our plan: Build on the architecture path first (fast, cheap, low-risk), then add score-first TTT + SLOT once SLOT legality is confirmed.

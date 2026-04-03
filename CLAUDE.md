@@ -131,7 +131,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 6. **Score-first Muon-TTT 3ep** — legal light TTT (from PR #1176)
 7. **SLOT δ-vector** — optimize additive δ at final hidden layer, -0.021 bpb (arXiv:2505.12392) — **VERIFY LEGALITY BEFORE GPU SPEND**
 
-**Key reference PRs**: #1019 (merged SOTA 1.1147), #1176 (1.0914, score-first TTT + SLOT), #1218 (1.09785, no TTT clean arch)
+**Key reference PRs**: #1019 (merged SOTA 1.1147), #1176 (1.0914, score-first TTT + SLOT disputed), #1218 (1.09785, no TTT clean arch), #1303 (0.9462 claimed, SLOT-16 + QK-Gain 4.0 + XSA-11, legality UNCONFIRMED), #1306 (1.0846, Causal SLOT -0.009 + Pre-quant TTT -0.022, no reviews)
 
 **Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), custom Triton kernels (poor EV), int4 without QAT (quality-destructive), eval stride=32 (time budget), AdamW TTT 30ep (illegal train-then-score), n-gram hash cache (illegal normalization).
 
@@ -141,7 +141,9 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 | Technique | Approx Δ bpb | Status |
 |-----------|-------------|--------|
-| **SLOT δ-vector (arXiv:2505.12392)** | **-0.021** | **Target — verify legality** |
+| **Causal SLOT (scored-position only)** | **-0.009** | **Lower risk — PR #1306 impl, await @valerio-oai ruling** |
+| **Pre-quant AdamW TTT (before GPTQ)** | **-0.022** | **Novel — PR #1306, no legality flags yet** |
+| **Standard SLOT δ-vector (arXiv:2505.12392)** | **-0.021** | **DISPUTED — Issue #1240: 100% causality violation rate** |
 | **QK-Gain 4.0** | **-0.006** | **Target (PR #1176)** |
 | **Score-first Muon-TTT 3ep** | **-0.003** | **Legal (PR #1176)** |
 | 4096 vocab | ~-0.02 | Target (PR #1218) |
@@ -229,4 +231,4 @@ Every change must answer: "Does this lower val_bpb within the 16MB/10-min constr
 
 **NEW (2026-04-01)**: Before any eval-time technique, answer: "Does the model see the ground truth label before scoring the token?" If yes, it's illegal. If no, verify with @valerio-oai before spending GPU time.
 
-_Updated: 2026-04-01 (v7.0 — PR #771 rejected, n-gram illegal, pivoting to arch path + legal TTT)_
+_Updated: 2026-04-03 (v7.1 — SLOT causality dispute (Issue #1240), Causal SLOT -0.009 bpb lower risk, Pre-quant TTT -0.022 bpb novel, PR #1303 claims 0.9462 bpb unreviewed)_
