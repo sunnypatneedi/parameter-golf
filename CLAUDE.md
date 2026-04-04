@@ -112,26 +112,30 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: 1.1147 val_bpb (abaybektursun, PR #1019, 2026-03-25)
-**Best open legal PR**: 1.0914 val_bpb (PR #1176, QK-Gain 4.0 + Muon-TTT 3ep + SLOT)
+**Merged leaderboard SOTA**: 1.1147 val_bpb (abaybektursun, PR #1019, 2026-03-25) — NO CHANGE as of 2026-04-04
+**Best open legal PR (clean)**: 1.0807 val_bpb (PR #1351, Discriminative TTT — per-block adaptive LR)
+**Best open arch-only PR**: 1.0897 val_bpb (PR #1334, SP4096 + Depth Recurrence + Parallel Residuals + MuonEq-R)
 **Best open any PR**: 0.3958 (PR #1094, BackoffNgramMixer — legality disputed)
 **Target**: Beat 1.1147 merged SOTA by >=0.005 nats.
 
-**CRITICAL LEGALITY UPDATES (2026-03-27)**:
-- **PR #771 REJECTED** — Our AdamW TTT 30ep was train-then-score, not score-first. All 30-epoch TTT results are void.
-- **N-gram cache ILLEGAL** — Hashed n-gram caches ruled out (Issue #1017): produce unnormalized distributions. PRs #727, #741 closed. PRs #731, #758 still open pending ruling.
-- **Score-first TTT ≤3 epochs IS LEGAL** — PR #1176 uses 3-epoch Muon-TTT with score-first ordering.
+**CRITICAL LEGALITY UPDATES**:
+- **PR #771 REJECTED (2026-03-27)** — Our AdamW TTT 30ep was train-then-score, not score-first. All 30-epoch TTT results are void.
+- **N-gram cache ILLEGAL (2026-03-27)** — Hashed n-gram caches ruled out (Issue #1017): produce unnormalized distributions. PRs #727, #741 closed. PRs #731, #758 still open but face same ruling.
+- **Score-first TTT ≤3 epochs IS LEGAL** — PR #1176, #1351 use score-first ordering.
+- **SLOT δ-vector UNRULED (as of 2026-04-04)** — Causality concern active in Issue #140. @abaybektursun removed SLOT from his own stack. Do NOT spend GPU on SLOT until @valerio-oai rules in Issue #140.
 
-**Current approach (architecture path — no TTT legality risk)**:
-1. **4096 vocab** — larger tokenizer, +embedding params freed from compression (from PR #1218)
-2. **4× MLP expansion** — vs 3× in older SOTA (from PR #1218)
-3. **XSA on all 11 layers** — exclusive self-attention (from PRs #503, #1019)
-4. **GPTQ + WD=0.085** — Hessian-aware quantization (from PR #1218)
-5. **QK-Gain 4.0** — hyperparameter, -0.006 bpb, 45-experiment validated (from PR #1176)
-6. **Score-first Muon-TTT 3ep** — legal light TTT (from PR #1176)
-7. **SLOT δ-vector** — optimize additive δ at final hidden layer, -0.021 bpb (arXiv:2505.12392) — **VERIFY LEGALITY BEFORE GPU SPEND**
+**Current approach (depth recurrence + discriminative TTT path)**:
+1. **SP4096 vocab** — larger tokenizer, frees embedding budget (from PR #1218, #1334)
+2. **Depth Recurrence + Parallel Residuals** — shared weights iterated N times + parallel residuals (from PR #1334, 1.0897 clean)
+3. **MuonEq-R optimizer** — Muon variant appearing in top 1.08–1.09 submissions (PR #1334, #1344)
+4. **4× MLP expansion** — vs 3× in older SOTA (from PR #1218)
+5. **XSA on all 11 layers** — exclusive self-attention (from PRs #503, #1019)
+6. **GPTQ + WD=0.085** — Hessian-aware quantization (from PR #1218)
+7. **QK-Gain 4.0** — -0.006 bpb, 45-experiment validated (from PR #1176)
+8. **Discriminative TTT** — per-block adaptive LR (0.3× early layers, 1.0× late layers), score-first ≤3ep (PR #1351, -0.010 bpb vs flat LR)
+9. **SLOT δ-vector** (arXiv:2505.12392) — -0.021 bpb potential — **BLOCKED: verify legality in Issue #140 first**
 
-**Key reference PRs**: #1019 (merged SOTA 1.1147), #1176 (1.0914, score-first TTT + SLOT disputed), #1218 (1.09785, no TTT clean arch), #1303 (0.9462 claimed, SLOT-16 + QK-Gain 4.0 + XSA-11, legality UNCONFIRMED), #1306 (1.0846, Causal SLOT -0.009 + Pre-quant TTT -0.022, no reviews)
+**Key reference PRs**: #1019 (merged SOTA 1.1147), #1334 (1.0897, clean arch), #1351 (1.0807, Discriminative TTT), #1218 (1.09785, no TTT base), #1306 (1.0846, Causal SLOT -0.009 + Pre-quant TTT -0.022, unreviewed), #1303 (0.9462 claimed, SLOT-16 + QK-Gain 4.0, legality UNCONFIRMED)
 
 **Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), custom Triton kernels (poor EV), int4 without QAT (quality-destructive), eval stride=32 (time budget), AdamW TTT 30ep (illegal train-then-score), n-gram hash cache (illegal normalization).
 
@@ -141,12 +145,15 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 | Technique | Approx Δ bpb | Status |
 |-----------|-------------|--------|
-| **Causal SLOT (scored-position only)** | **-0.009** | **Lower risk — PR #1306 impl, await @valerio-oai ruling** |
 | **Pre-quant AdamW TTT (before GPTQ)** | **-0.022** | **Novel — PR #1306, no legality flags yet** |
-| **Standard SLOT δ-vector (arXiv:2505.12392)** | **-0.021** | **DISPUTED — Issue #1240: 100% causality violation rate** |
-| **QK-Gain 4.0** | **-0.006** | **Target (PR #1176)** |
-| **Score-first Muon-TTT 3ep** | **-0.003** | **Legal (PR #1176)** |
-| 4096 vocab | ~-0.02 | Target (PR #1218) |
+| **Standard SLOT δ-vector (arXiv:2505.12392)** | **-0.021** | **BLOCKED — Issue #1240: causality dispute, no ruling** |
+| **Discriminative TTT (per-block LR)** | **-0.010** | **Legal — PR #1351, adopt** |
+| **Causal SLOT (scored-position only)** | **-0.009** | **Lower risk — PR #1306 impl, await @valerio-oai ruling** |
+| **QK-Gain 4.0** | **-0.006** | **In plan (PR #1176)** |
+| **Depth Recurrence + Parallel Residuals** | **~-0.015** | **Target — PR #1334 (1.0897 clean)** |
+| **MuonEq-R optimizer** | **~-0.005** | **Target — in PR #1334, #1344** |
+| **Score-first Muon-TTT 3ep** | **-0.003** | **Legal (PR #1176, #1351)** |
+| SP4096 vocab | ~-0.02 | Target (PR #1218, #1334)
 | 4× MLP expansion | ~-0.01 | Target (PR #1218, vs 3×) |
 | Sliding window eval (stride=64) | -0.032 | In SOTA |
 | AR Self-Gen GPTQ calibration | ~-0.005 | In merged SOTA (PR #1019) |
@@ -211,7 +218,7 @@ Rules:
 9. **First GPU run = UNMODIFIED baseline.** Establish baseline numbers before adding ANY changes. Then add ONE change at a time. Shipping 578 new lines in one run made debugging impossible.
 10. **Compute TTT time budget before setting epochs.** `epochs × batches × time/batch`. 20 epochs × 71 batches × ~1s = 1420s. Basic math catches budget blowouts.
 11. **Check disk quota before downloading data.** RunPod disk quotas are per-pod, not per-filesystem. 80 shards = ~16GB. Verify space first.
-12. **Depth recurrence is falsified.** PR #540 got 1.2092 bpb (worse than 1.2244 baseline). Do not attempt.
+12. **Simple depth recurrence (PR #540) is falsified.** Got 1.2092 bpb (worse than baseline). However, **Depth Recurrence + Parallel Residuals** in PR #1334 achieves 1.0897 — different implementation. The key is parallel residual connections alongside recurrence. See PR #1334 before dismissing.
 
 ### Session 3 (2026-03-24)
 13. **In-Place TTT is HARMFUL.** Loss INCREASES (2.63+, going up not down). MLP output projections are NOT good TTT targets at this scale. Do not attempt.
@@ -222,8 +229,14 @@ Rules:
 ### Session 4 (2026-04-01)
 17. **Score-first is non-negotiable for TTT.** PR #771 was rejected because we ran 30 epochs of TTT on all val tokens, THEN evaluated on those same tokens. The rule: score the token first, update on scored token, move on. Maximum ~3 epochs to stay within time budget. "Train-then-score" ordering = instant rejection.
 18. **N-gram hash cache is illegal without proper normalization.** Issue #1017 (2026-03-27) ruled all hashed n-gram caches out of the record track — they don't produce normalized probability distributions. PRs #727, #741 closed. The "CONFIRMED LEGAL" status from earlier sessions is void. Any n-gram implementation must renormalize properly on every backoff step.
-19. **Verify legality of novel eval techniques before GPU spend.** SLOT (δ-vector on final hidden layer) shows -0.021 bpb but causality concerns raised. Check Issue #140 or PR discussion for @valerio-oai ruling before investing $33+ on a GPU run.
+19. **Verify legality of novel eval techniques before GPU spend.** SLOT (δ-vector on final hidden layer) shows -0.021 bpb but causality concerns raised. As of 2026-04-04, still unruled — @abaybektursun removed it from his own SOTA stack. Check Issue #140 for @valerio-oai ruling before spending GPU.
 20. **4096 vocab + 4×MLP achieves sub-1.1 WITHOUT TTT.** PR #1218 (clarkkev) gets 1.09785 via architecture alone — 4096 vocab, 4×MLP, XSA-all, GPTQ, WD=0.085. No TTT needed. This is a low-risk, high-EV path.
+
+### Session 5 (2026-04-04)
+21. **Discriminative TTT is legal and high-EV.** PR #1351 (1.0807 bpb) uses per-block adaptive LR during score-first TTT: early transformer blocks get 0.3× LR, later blocks 1.0× LR. Adds -0.010 bpb vs flat-LR TTT. Adopt in next GPU run.
+22. **Depth Recurrence + Parallel Residuals is the new architecture frontier.** PR #1334 (1.0897, clean, no TTT/SLOT) uses shared-weight layers iterated N times with parallel residuals and MuonEq-R optimizer. Better than adding more distinct layers. Investigate before GPU spend.
+23. **MuonEq-R replaces standard Muon in top submissions.** Appears in PR #1334, #1344, #1326. Likely a Muon variant with equalized updates or rotation. Read PR #1334 code before next run.
+24. **Best reachable target without SLOT: ~1.080.** PR #1351 (Discriminative TTT) + PR #1334 (Depth Recur + Parallel Res + MuonEq-R) combined should reach 1.080–1.085 range. Both techniques are legal. This beats merged SOTA by ~0.035 nats — well above the 0.005 threshold.
 
 ## Golden Rules
 
@@ -231,4 +244,4 @@ Every change must answer: "Does this lower val_bpb within the 16MB/10-min constr
 
 **NEW (2026-04-01)**: Before any eval-time technique, answer: "Does the model see the ground truth label before scoring the token?" If yes, it's illegal. If no, verify with @valerio-oai before spending GPU time.
 
-_Updated: 2026-04-03 (v7.1 — SLOT causality dispute (Issue #1240), Causal SLOT -0.009 bpb lower risk, Pre-quant TTT -0.022 bpb novel, PR #1303 claims 0.9462 bpb unreviewed)_
+_Updated: 2026-04-04 (v8.0 — Discriminative TTT + Depth Recur + Parallel Residuals + Pre-quant TTT; SLOT causality disputed (Issue #1240), no ruling; merged SOTA unchanged at 1.1147)_
