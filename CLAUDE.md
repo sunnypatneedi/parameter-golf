@@ -152,6 +152,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | **QK-Gain 4.0** | **-0.006** | **In plan (PR #1176)** |
 | **Depth Recurrence + Parallel Residuals** | **~-0.015** | **Target — PR #1334 (1.0897 clean)** |
 | **MuonEq-R optimizer** | **~-0.005** | **Target — in PR #1334, #1344** |
+| **ExoFormer (Q/K/V anchor mixing)** | **~-0.005 to -0.010** | **Target — arXiv:2601.08131, extends Value Residual** |
 | **Score-first Muon-TTT 3ep** | **-0.003** | **Legal (PR #1176, #1351)** |
 | SP4096 vocab | ~-0.02 | Target (PR #1218, #1334)
 | 4× MLP expansion | ~-0.01 | Target (PR #1218, vs 3×) |

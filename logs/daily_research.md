@@ -65,10 +65,17 @@
 
 ## New Research Papers
 
-- **SLOT** (arXiv:2505.12392) — δ-vector at final hidden layer, -0.021 bpb. Legality DISPUTED (Issue #1240).
-- **LaCT** (arXiv:2505.23884) — Large-scale TTT (2K–1M tokens); could enable more efficient score-first TTT within time budget.
-- **qTTT** (arXiv:2512.13898) — Quantization-aware TTT; integration with GPTQ unclear.
-- **pQuant** (arXiv:2602.22592, Feb 2026) — Decoupled linear QAT for sub-4-bit models. Could enable int5/int4 with lower quality loss vs current int6 GPTQ.
+| Paper | arXiv | Action |
+|-------|-------|--------|
+| **ExoFormer** (Exogenous Anchor Attention) | 2601.08131 (Jan 2026) | **NEW — read.** Extends Value Residual to Q/K/V with learned mixing coefficients. Est. -0.005 to -0.010 bpb. Medium complexity, no legality risk. Verify 16MB fit. |
+| **Muon Optimizer State Quantization** | 2509.23106 (Sep 2025) | **NEW — low risk.** Int8 blockwise quantization of Muon optimizer states. 62% memory reduction during training → allows slightly larger model in same GPU memory. Low complexity. |
+| **SLOT** | 2505.12392 (May 2025) | -0.021 bpb. BLOCKED — legality DISPUTED (Issue #1240). Await @valerio-oai. |
+| **LaCT** (Large Chunk TTT) | 2505.23884 (May 2025) | High complexity (architecture overhaul + meta-learning). Skip. |
+| **E2E-TTT for Long Context** | 2512.23675 (Dec 2025) | High complexity, meta-learning required. Skip. |
+| **XSA** (Exclusive Self-Attention) | 2603.09078 (Mar 2026) | Already in stack. Read for implementation refinements only. |
+| **Muon is Scalable** | 2502.16982 (Feb 2025) | Already in stack (WD=0.085 validated). No new action. |
+| **pQuant** (Decoupled Linear QAT) | 2602.22592 (Feb 2026) | Sub-4-bit QAT. May enable int5/int4 with lower quality loss. High complexity. |
+| **Induction-head N-gram** | 2411.00066 (Oct 2024) | N-gram interpolation still faces Issue #1017 ruling. Skip until organizer confirms. |
 
 ---
 
