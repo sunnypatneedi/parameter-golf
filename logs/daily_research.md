@@ -1,3 +1,102 @@
+# Parameter Golf Daily Research — 2026-04-05
+
+## PR #771 STATUS: CLOSED (REJECTED — confirmed, no change)
+
+Same ruling as previous days. Train-then-score AdamW TTT 30ep. Result void.
+
+---
+
+## N-GRAM PR STATUS
+
+| PR | Score | Status |
+|----|-------|--------|
+| #727 | 0.9674 | **CLOSED** — illegal normalization (Issue #1017) |
+| #758 | 1.0465 | **OPEN** — no maintainer ruling; normalization risk |
+| #731 | 1.0400 | **OPEN** — no maintainer ruling; normalization risk |
+| **#1379** | **0.4162** | **OPEN, NEW** — mixed quant + causal backoff n-gram, author claims score-first; no maintainer review |
+
+---
+
+## Leaderboard
+
+- **Merged SOTA**: 1.1147 (abaybektursun, PR #1019) — **NO CHANGE**
+- **Best clean open arch-only**: 1.0897 (PR #1334, Depth Recur + Parallel Residuals + MuonEq-R)
+- **Best open (legality unclear)**: 0.4162 (PR #1379, n-gram mixer), 0.7094 (PR #1376, SLOT-24 + Pre-quant TTT)
+- **Our PR #771**: CLOSED/VOID
+
+---
+
+## What Changed (GitHub) — 2026-04-05
+
+### CRITICAL: PR #1351 (Discriminative TTT, 1.0807) CLOSED by author on 2026-04-05
+
+- **Author**: resouer
+- **Reason**: "Pre-quant TTT trains on validation tokens before quantization and scoring. This is pre-eval adaptation on validation data — every prediction depends on its own answer because the model memorized targets across 6 full training epochs on the exact validation set."
+- **Impact on strategy**: Pre-quant AdamW TTT (which we had in our technique table as -0.022 bpb) is now **ILLEGAL**. The discriminative TTT technique itself (per-block adaptive LR, score-first ≤3ep WITHOUT pre-quant) may still be legal.
+
+### New high-value PRs (since 2026-04-04)
+
+| PR | BPB | Technique | Legality |
+|----|-----|-----------|----------|
+| **#1379** | **0.4162** | Mixed quant + causal backoff n-gram mixer (entropy-adaptive) | OPEN, author claims score-first; awaiting maintainer review |
+| **#1376** | **0.7094** | SLOT-24 (per-sample δ, 24 AdamW steps) + Pre-quant TTT 6ep | OPEN; Pre-quant TTT likely illegal (see #1351 ruling), SLOT unruled |
+| **#1364** | **1.1025** | Pre-quant AdamW TTT 6ep + QK-Gain 4.0 (QK5 from #1334) | OPEN; **same pre-quant TTT issue as #1351 — at risk** |
+| **#1370** | **1.003** | 10L Gated DeltaNet (linear attention, O(n) complexity) | OPEN, no legality flags |
+
+### PR #1334 (Depth Recurrence + Parallel Residuals) — CLEANEST PATH
+- 1.0897 bpb (3-seed, SD=0.0003). 0.0250 bpb improvement over merged SOTA.
+- Zero legality flags: no TTT, no SLOT, no n-gram.
+- Explicit compliance: frozen weights at eval.
+- Uses **QK-Gain 5.0** (vs 4.0 from PR #1176). Note: PR #1334 uses 5.0, not 4.0.
+- MuonEq-R optimizer.
+
+### SLOT legality — STILL UNRULED (Issue #1240)
+- @valerio-oai has NOT ruled on SLOT.
+- @abaybektursun removed SLOT from his own stack.
+- PR #1376 (0.7094) uses SLOT-24 + Pre-quant TTT — both techniques are now under legality cloud.
+- **Verdict: BLOCKED. Do not spend GPU.**
+
+### Pre-quant TTT legality — NOW PRESUMED ILLEGAL
+- PR #1351 author explicitly withdrew citing pre-quant TTT as eval-data leakage.
+- PR #1364 (1.1025, pre-quant TTT + QK-Gain 4.0) is still open but faces the same issue.
+- **Do NOT use pre-quant TTT until @valerio-oai explicitly clears it.**
+
+---
+
+## New Research Papers
+
+| Paper | arXiv ID | Relevance | Action |
+|-------|----------|-----------|--------|
+| **Gated DeltaNet** (linear attention for LM) | In PR #1370, based on prior GDN work | Achieves 1.003 bpb in competition. O(n) complexity replaces softmax attention. | Watch PR #1370 for reviewer feedback; low legality risk |
+| **Test-Time Training Provably Improves In-context Learning** | 2503.11842 (Mar 2026) | Theoretical foundation for TTT. Score-first single gradient step. Validates our legal TTT approach. | Read for TTT implementation guidance |
+| **Test-Time Learning for LLMs** | 2505.20633 | Broader TTT survey including legal variants | Low priority |
+| **LieQ** (layer-wise PTQ for small LMs) | 2508.03332 | Mixed-precision within layers, preserves standard kernels. May apply to post-GPTQ accuracy. | Skip — too late-stage |
+| **NGPU-LM** (GPU-accelerated n-gram LM) | 2505.22857 | GPU-optimized n-gram inference, context biasing | Relevant if n-gram cleared; watch #1379 ruling first |
+
+---
+
+## Recommended Action
+
+**IMMEDIATE STRATEGY PIVOT: Remove Pre-quant TTT from plan.**
+
+Priority order:
+
+1. **PRIMARY: Implement PR #1334 architecture** (Depth Recurrence + Parallel Residuals + MuonEq-R + SP4096 + QK-Gain 5.0). Legal, 1.0897 bpb, well-documented. This is now the anchor of our stack.
+
+2. **ADD: Discriminative TTT on top of PR #1334** — per-block adaptive LR (0.3× early, 1.0× late), score-first, ≤3 epochs, NO pre-quant component. The per-block LR technique from PR #1351 is distinct from the illegal pre-quant TTT that caused the withdrawal.
+
+3. **WATCH: PR #1379 ruling** (0.4162, n-gram). If @valerio-oai clears the causal backoff n-gram implementation, it's the single biggest gain available. Do not build on it yet.
+
+4. **DO NOT USE**: Pre-quant AdamW TTT (illegal per #1351 author), SLOT (unruled).
+
+5. **Gap**: 1.0897 (PR #1334) + discriminative TTT estimate (-0.010) → ~1.080 target. That beats merged SOTA by 0.035 nats (>0.005 threshold).
+
+---
+
+_Updated: 2026-04-05 (daily research agent)_
+
+---
+
 # Parameter Golf Daily Research — 2026-04-04
 
 ## PR #771 STATUS: CLOSED (REJECTED)
