@@ -112,32 +112,36 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: 1.1147 val_bpb (abaybektursun, PR #1019, 2026-03-25) — NO CHANGE as of 2026-04-05
-**Best clean open arch-only PR**: 1.0897 val_bpb (PR #1334, SP4096 + Depth Recurrence + Parallel Residuals + MuonEq-R)
-**Best open any PR (legality unclear)**: 0.4162 (PR #1379, n-gram mixer), 0.7094 (PR #1376, SLOT-24 + Pre-quant TTT)
-**Target**: Beat 1.1147 merged SOTA by >=0.005 nats.
+**Merged leaderboard SOTA**: 1.1147 val_bpb (abaybektursun, PR #1019, 2026-03-25) — NO CHANGE as of 2026-04-06
+**Best open legal PR**: 1.08014 val_bpb (PR #1420, abaybektursun, SP8192 + Triple Loop + N-gram Tilt + Fused Kernels)
+**Best open any PR**: 1.07948 (PR #1416, SP8192 + Pre-Quant TTT — likely illegal)
+**Target**: Beat 1.1147 merged SOTA by >=0.005 nats. Best reachable legal target: ~1.075–1.077.
 
 **CRITICAL LEGALITY UPDATES**:
 - **PR #771 REJECTED (2026-03-27)** — Our AdamW TTT 30ep was train-then-score, not score-first. All 30-epoch TTT results are void.
-- **N-gram cache ILLEGAL (2026-03-27)** — Hashed n-gram caches ruled out (Issue #1017): produce unnormalized distributions. PRs #727, #741 closed. PRs #731, #758 still open but face same ruling. PR #1379 (0.4162) claims causal score-first n-gram — awaiting maintainer review.
-- **Score-first TTT ≤3 epochs IS LEGAL** — PR #1176 uses score-first ordering. Discriminative (per-block LR) variant without pre-quant is still legal.
-- **SLOT δ-vector UNRULED (as of 2026-04-05)** — Causality concern active in Issue #140. @abaybektursun removed SLOT from his own stack. Do NOT spend GPU on SLOT until @valerio-oai rules.
-- **Pre-quant AdamW TTT NOW PRESUMED ILLEGAL (2026-04-05)** — PR #1351 author (resouer) self-closed citing pre-quant TTT as "pre-eval adaptation on validation data." PR #1364 (1.1025, pre-quant TTT) faces same risk. Do NOT use pre-quant TTT.
+- **N-gram hash cache ILLEGAL** — PRs #727, #741 closed. PRs #731, #758 still open but unresolved.
+- **N-gram Tilt IS LEGAL (PR #1420)** — Normalized via softmax partition function Z: `p_tilt(t) = p_model(t) · exp(β · 1[t==hint]) / Z`. Causal (backward-looking only). -0.0029 bpb, zero artifact cost. This is the legal n-gram approach.
+- **Score-first TTT ≤3 epochs IS LEGAL** — PR #1413 confirms all blocks trainable, lr=0.005, 3ep. -0.003 bpb.
+- **Pre-quant TTT ILLEGAL (all variants)** — PR #1351, #1416, #1408 all use pre-quant TTT. Do NOT use.
+- **SLOT δ-vector UNRULED** — Await @valerio-oai ruling in Issue #140. Do NOT spend GPU.
+- **ETLB UNRULED** — Eval-Time Logit Bias (PR #1399/#1415): learns `b ∈ ℝ^vocab` on context tokens each window. Reviewer questioned SLOT resemblance. -0.0019 bpb standalone. Await ruling before implementing.
 
-**Current approach (depth recurrence + discriminative TTT path)**:
-1. **SP4096 vocab** — larger tokenizer, frees embedding budget (from PR #1218, #1334)
-2. **Depth Recurrence + Parallel Residuals** — shared weights iterated N times + parallel residuals (from PR #1334, 1.0897 clean)
-3. **MuonEq-R optimizer** — Muon variant appearing in top 1.08–1.09 submissions (PR #1334, #1344)
-4. **4× MLP expansion** — vs 3× in older SOTA (from PR #1218)
-5. **XSA on all 11 layers** — exclusive self-attention (from PRs #503, #1019)
-6. **GPTQ + WD=0.085** — Hessian-aware quantization (from PR #1218)
-7. **QK-Gain 5.0** — PR #1334 uses 5.0 (not 4.0); adopt from PR #1334 directly
-8. **Discriminative TTT (post-quant only)** — per-block adaptive LR (0.3× early layers, 1.0× late layers), score-first ≤3ep, NO pre-quant component
-9. **SLOT δ-vector** — **BLOCKED: await @valerio-oai ruling in Issue #140**
+**Current approach (PR #1420 stack + legal TTT)**:
+1. **SP8192 vocab** — beats SP4096 by ~0.009 bpb (PR #1420 vs #1334)
+2. **Triple Loop (17 virtual layers)** — layers 4-5 repeated 3× (not 2×), activated at 0.35× training
+3. **Parallel Residuals (layers 7-10)** — GPT-J style, faster forward pass, tighter GPTQ calibration
+4. **MuonEq-R optimizer** — arXiv:2603.28254; in PR #1334, #1344, #1420
+5. **4× MLP expansion** — vs 3× in older SOTA
+6. **XSA on all 11 layers** — exclusive self-attention
+7. **GPTQ int6 + WD=0.085** — Hessian-aware quantization; SDClip variant in PR #1420
+8. **QK-Gain 5.0** — from PR #1334/#1420
+9. **N-gram Tilt** — -0.0029 bpb, legal, zero artifact cost (PR #1420)
+10. **Legal Score-First TTT (post-quant only)** — all blocks, 3ep, lr=0.005, score-first (PR #1413)
+11. **Fused Kernels** — Triton TMA (forward) + CUTLASS 3.x (backward), +10% throughput (+127 steps) — add last, complex
 
-**Key reference PRs**: #1019 (merged SOTA 1.1147), #1334 (1.0897, cleanest legal arch), #1218 (1.09785, no TTT base), #1370 (1.003, Gated DeltaNet, no legality flags), #1379 (0.4162, n-gram, awaiting ruling)
+**Key reference PRs**: #1019 (merged SOTA 1.1147), #1420 (1.08014, PRIMARY TARGET: SP8192+TripleLoop+N-gram Tilt+FusedKernels), #1413 (1.08279, SP8192+Legal TTT), #1334 (1.0897, cleanest arch reference), #1370 (1.003, Gated DeltaNet, non-record)
 
-**Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), custom Triton kernels (poor EV), int4 without QAT (quality-destructive), eval stride=32 (time budget), AdamW TTT 30ep (illegal train-then-score), n-gram hash cache (illegal normalization), pre-quant AdamW TTT (PR #1351 self-closed — pre-eval adaptation).
+**Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), custom Triton kernels (poor EV — REVERTED: PR #1420 shows +10% via Triton TMA, revisit after base works), int4 without QAT (quality-destructive), eval stride=32 (time budget), AdamW TTT 30ep (illegal), n-gram hash cache (illegal), pre-quant TTT any form (illegal).
 
 ---
 
@@ -145,20 +149,24 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 | Technique | Approx Δ bpb | Status |
 |-----------|-------------|--------|
-| **Pre-quant AdamW TTT (before GPTQ)** | **-0.022** | **PRESUMED ILLEGAL — PR #1351 author self-closed citing pre-eval adaptation (2026-04-05)** |
-| **Standard SLOT δ-vector (arXiv:2505.12392)** | **-0.021** | **BLOCKED — Issue #1240: causality dispute, no ruling** |
-| **Discriminative TTT (per-block LR, post-quant only)** | **-0.010** | **Legal — score-first ≤3ep WITHOUT pre-quant; PR #1351 technique (not the pre-quant component)** |
-| **Causal SLOT (scored-position only)** | **-0.009** | **BLOCKED — await @valerio-oai ruling (same Issue #140)** |
-| **QK-Gain 5.0** | **~-0.006** | **In plan — PR #1334 uses 5.0 (not 4.0 from PR #1176)** |
-| **Depth Recurrence + Parallel Residuals** | **~-0.015** | **PRIMARY TARGET — PR #1334 (1.0897 clean, zero legality flags)** |
-| **MuonEq-R optimizer** | **~-0.005** | **Target — in PR #1334, #1344** |
-| **Gated DeltaNet (linear attention)** | **~-0.11 vs baseline** | **WATCH — PR #1370 achieves 1.003 bpb, no legality flags, O(n) complexity** |
-| **Score-first post-quant Muon-TTT 3ep** | **-0.003** | **Legal (PR #1176)** |
-| SP4096 vocab | ~-0.02 | Target (PR #1218, #1334)
-| 4× MLP expansion | ~-0.01 | Target (PR #1218, vs 3×) |
+| **Pre-quant TTT (any form, before GPTQ)** | — | **ILLEGAL — PR #1351, #1408, #1416 all illegal; pre-eval adaptation** |
+| **Standard SLOT δ-vector (arXiv:2505.12392)** | **-0.021** | **BLOCKED — Issue #140: causality dispute, no ruling from @valerio-oai** |
+| **ETLB (Eval-Time Logit Bias)** | **-0.0019** | **UNRULED — PR #1399/#1415; reviewer questioned SLOT resemblance; await ruling** |
+| **Causal SLOT (scored-position only)** | **-0.009** | **BLOCKED — await @valerio-oai ruling (Issue #140)** |
+| **N-gram Tilt (PR #1420)** | **-0.0029** | **LEGAL — properly normalized via partition function Z; causal; zero artifact cost** |
+| **Triple Loop (3× depth recurrence)** | **~-0.009 vs 2×** | **PRIMARY — PR #1420 (1.08014); 17 virtual layers; activate at 0.35× training** |
+| **SP8192 vocab** | **~-0.009 vs SP4096** | **PRIMARY — PR #1420/#1413; use over SP4096** |
+| **Fused Kernels (Triton TMA + CUTLASS 3.x)** | **+127 steps (~-0.002)** | **Legal — PR #1420; add last, complex; Triton TMA forward + CUTLASS backward** |
+| **Legal Score-First TTT (all blocks, 3ep)** | **-0.003** | **Legal — PR #1413; lr=0.005, inference_mode scoring before update** |
+| **Depth Recurrence + Parallel Residuals** | **~-0.015 vs baseline** | **In plan — PR #1334 (1.0897); upgrade to Triple Loop from PR #1420** |
+| **MuonEq-R optimizer** | **~-0.005** | **In plan — arXiv:2603.28254; PR #1334, #1420** |
+| **QK-Gain 5.0** | **~-0.006** | **In plan — PR #1334, #1420** |
+| **4× MLP expansion** | **~-0.01** | **In plan — PR #1218, #1334** |
+| SP4096 vocab | ~-0.02 vs SP1024 | Superseded by SP8192 |
 | Sliding window eval (stride=64) | -0.032 | In SOTA |
 | AR Self-Gen GPTQ calibration | ~-0.005 | In merged SOTA (PR #1019) |
 | XSA (all 11 layers) | -0.002 to -0.005 | In merged SOTA |
+| EMA decay 0.9965 (vs 0.997) | ~-0.002 | PR #1421 (1.0925); tighter GPTQ calibration |
 | 3× MLP expansion | -0.015 | In older SOTA |
 | Int6 QAT | -0.010 | In SOTA |
 | SmearGate + BigramHash(4096) | -0.006 | In older SOTA |
@@ -166,7 +174,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | 11 layers | -0.003 | In SOTA |
 | EMA (0.997) + SWA (every 50) | -0.002 | In SOTA |
 | Partial RoPE (16/64) + LN Scale | -0.002 | In SOTA |
-| Orthogonal init + Muon WD=0.04 | -0.003 | In SOTA |
+| Gated DeltaNet (PR #1370) | ~-0.11 vs baseline | Non-record (>10 min); O(n) linear attention |
 | AdamW TTT (30 ep, train-then-score) | — | **ILLEGAL (PR #771 rejected)** |
 | N-gram hash cache | — | **ILLEGAL (normalization, Issue #1017)** |
 | LoRA TTT | **+0.004 (HURTS)** | **Abandoned** |
@@ -245,10 +253,19 @@ Rules:
 27. **PR #1334 is now the cleanest path to sub-1.09 bpb.** Zero legality flags, 1.0897 bpb, fully documented. Merged SOTA delta: 0.0250 bpb. Primary implementation target.
 28. **Gated DeltaNet (PR #1370, 1.003 bpb) is a new architecture to watch.** Linear attention O(n) complexity, no legality flags. Not in our current plan but could be strong base alternative.
 
+### Session 7 (2026-04-06)
+29. **N-gram Tilt is the legal n-gram path.** PR #1420 uses properly normalized next-token hints: `p_tilt(t) = p_model(t) · exp(β · 1[t==hint]) / Z`. Causal (backward-looking only). -0.0029 bpb, zero artifact cost. Replaces the illegal hash cache approach.
+30. **Triple Loop (3×) beats Double Loop (2×).** PR #1420 repeats layers 4-5 three times (17 virtual layers) vs PR #1334's twice (13 virtual layers), activated earlier at 0.35× training. Combined with SP8192: 1.08014 bpb vs 1.0897.
+31. **SP8192 beats SP4096 by ~0.009 bpb.** Upgrade vocab target from SP4096 to SP8192. PR #1420 and #1413 both confirm.
+32. **Fused kernels are now worth implementing.** PR #1420 shows Triton TMA (forward) + CUTLASS 3.x (backward) yields +10% throughput = +127 steps in 600s budget. Earlier "poor EV" assessment was wrong at this scale. Add after base stack is confirmed working.
+33. **abaybektursun is still the leader to track.** He holds merged SOTA (PR #1019, 1.1147) AND best open legal PR (PR #1420, 1.08014). His techniques reliably work. Read his PRs first.
+34. **All pre-quant TTT variants are illegal.** PRs #1408 (dTTT 10ep), #1406 (discriminative pre-quant), #1416 (SP8192 + pre-quant) all use pre-quant TTT. Same illegality as PR #1351. Do not implement any of these.
+35. **ETLB is promising but awaits ruling.** -0.0019 bpb, post-LM-head bias vector, uses context tokens (already scored). Ask @valerio-oai in Issue #140 before GPU spend. If legal, easy -0.002 bpb with no weight modification.
+
 ## Golden Rules
 
 Every change must answer: "Does this lower val_bpb within the 16MB/10-min constraints?" If the answer is unclear, run a quick experiment on 1xH100 before investing more time. Compression and eval tricks are as valuable as architecture changes. The cheapest experiment that gives signal is the best experiment. Speed > perfection — submit early, iterate after.
 
 **NEW (2026-04-01)**: Before any eval-time technique, answer: "Does the model see the ground truth label before scoring the token?" If yes, it's illegal. If no, verify with @valerio-oai before spending GPU time.
 
-_Updated: 2026-04-05 (v9.0 — Pre-quant TTT removed (illegal, PR #1351 self-closed); Primary path: PR #1334 arch + post-quant discriminative TTT; SLOT blocked; merged SOTA unchanged at 1.1147)_
+_Updated: 2026-04-06 (v10.0 — Primary path shifted to PR #1420: SP8192 + Triple Loop + N-gram Tilt + Fused Kernels; ETLB unruled; merged SOTA unchanged at 1.1147)_
