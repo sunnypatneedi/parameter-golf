@@ -175,6 +175,13 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | EMA (0.997) + SWA (every 50) | -0.002 | In SOTA |
 | Partial RoPE (16/64) + LN Scale | -0.002 | In SOTA |
 | Gated DeltaNet (PR #1370) | ~-0.11 vs baseline | Non-record (>10 min); O(n) linear attention |
+| **MuonEq-R (arXiv:2603.28254)** | **~-0.005** | **NOW — drop-in Muon swap; normalize row norms before Newton-Schulz; O(m+n) overhead; zero artifact cost** |
+| **Cooldown+QAT fusion (arXiv:2509.22935)** | **~-0.002** | **NOW — do LR decay jointly with QAT activation; no artifact size change; Apple ML Research** |
+| **LaCT large-chunk TTT (arXiv:2505.23884)** | GPU util 0→70% | Target — better hardware use for post-quant TTT; code at github.com/a1600012888/LaCT |
+| **SGT sparse depth recurrence (arXiv:2603.23998)** | saves FLOP budget | Watch — reduces Triple Loop FLOP overhead 16-20% → 1-3% |
+| **Early-exit depth recurrence (arXiv:2509.23314)** | saves eval budget | Watch — skip loop iterations when step-size delta below threshold |
+| Newton-Muon (arXiv:2604.01472) | ~+4-6% steps | WATCH — Apr 2026, untested; try after MuonEq-R confirmed |
+| Infini-gram interpolation (arXiv:2401.17377) | large but legal unclear | WATCH — suffix array ∞-gram, normalized; legal if score-first; high impl cost |
 | AdamW TTT (30 ep, train-then-score) | — | **ILLEGAL (PR #771 rejected)** |
 | N-gram hash cache | — | **ILLEGAL (normalization, Issue #1017)** |
 | LoRA TTT | **+0.004 (HURTS)** | **Abandoned** |

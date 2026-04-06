@@ -81,10 +81,38 @@ Rejected by @valerio-oai on 2026-03-27: "you're first adapting your model to the
 
 ## New Research Papers
 
-Key paper flagged from PR analysis:
-- **MuonEq-R** (arXiv:2603.28254, 2026) — Muon variant with equalized updates/rotation. Used in PR #1334 (1.0897), #1344. Already implemented in competitor code; read PR #1334 for implementation.
+| Priority | Paper | arXiv ID | Δ bpb est. | Risk |
+|----------|-------|----------|-----------|------|
+| **NOW** | MuonEq: Balancing Before Orthogonalization | 2603.28254 | ~-0.005 | Low |
+| **NOW** | Compute-Optimal QAT (cooldown+QAT fusion) | 2509.22935 | ~-0.002 | Low |
+| Medium | LaCT: Large Chunk TTT | 2505.23884 | better GPU util | Medium |
+| Medium | Sparse Growing Transformer (SGT) | 2603.23998 | +steps in budget | Medium |
+| Medium | Early-exit depth recurrence | 2509.23314 | frees eval budget | Medium |
+| Watch | Newton-Muon | 2604.01472 | +4-6% steps | High (new) |
+| High-risk | Infini-gram interpolation | 2401.17377 | large but unclear | High (legal?) |
 
-*(Full arxiv search results pending from background agent)*
+### Key Paper Details
+
+**MuonEq-R (arXiv:2603.28254, ~Mar 2026)**
+Normalizes row squared-norms of the momentum matrix *before* Newton-Schulz orthogonalization. O(m+n) auxiliary state overhead. Tested on LLaMA2-130M/350M on C4 — consistently outperforms standard Muon. **This is what PRs #1334, #1344 call "MuonEq-R."** Drop-in optimizer swap, zero artifact size cost. Implement now.
+
+**Compute-Optimal QAT (arXiv:2509.22935, Sep 2025, Apple ML)**
+Studies optimal QAT fraction vs full-precision budget across 86M–2.2B models. Key finding: loss-optimal QAT fraction is predictable from tokens/parameter-byte. **Cooldown+QAT fusion** — do LR decay jointly with QAT activation — eliminates redundant FP updates. Direct code change to training loop, reduces quant penalty without changing artifact size.
+
+**LaCT (arXiv:2505.23884, May 2025)**
+Large Chunk TTT: uses 2K–1M token chunks per update instead of per-token. Improves GPU utilization from near-zero to ~70% on A100s. Expands effective TTT state to 40% of model params. Directly applicable to squeezing more out of the 10-min eval budget for post-quant score-first TTT. Code: github.com/a1600012888/LaCT
+
+**Sparse Growing Transformer / SGT (arXiv:2603.23998, Mar 25 2026)**
+Reduces depth recurrence training FLOP overhead from 16–20% to 1–3% via selective looping on high-entropy attention heads. Directly mitigates the compute cost of Triple Loop in PR #1420. More iterations per 10-min budget.
+
+**Early-exit for depth recurrence (arXiv:2509.23314, Sep 2025)**
+Analyzes loop step geometry (norms + consecutive-step angles). Proposes early-exit when second-order difference in step-size falls below threshold — more reliable than KL-divergence exits. Skip unnecessary loop iterations at eval time, freeing compute for TTT.
+
+**Newton-Muon (arXiv:2604.01472, Apr 2026)**
+Principled Newton-type Muon derivation. 6% fewer steps, ~4% less wall-clock to same target loss vs standard Muon on NanoGPT benchmark. Very new, untested in competition. Try only after MuonEq-R confirmed working.
+
+**Infini-gram (arXiv:2401.17377, Jan 2024, updated Apr 2025)**
+Suffix array ∞-gram with proper backoff normalization. Interpolating with neural LM reduces perplexity up to 73%. Unlike hashed caches (illegal), suffix arrays produce normalized distributions. May be legal — but implementation cost is high (suffix arrays require disk structures) and artifact size impact unclear. Watch if PR #731/#758 gets ruled legal first.
 
 ---
 
