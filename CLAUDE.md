@@ -182,6 +182,8 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | **SGT sparse depth recurrence (arXiv:2603.23998)** | saves FLOP budget | Watch — reduces Triple Loop FLOP overhead 16-20% → 1-3% |
 | **Early-exit depth recurrence (arXiv:2509.23314)** | saves eval budget | Watch — skip loop iterations when step-size delta below threshold |
 | Newton-Muon (arXiv:2604.01472) | ~+4-6% steps | WATCH — Apr 2026, untested; try after MuonEq-R confirmed |
+| MUD/MomentUm Decorrelation (arXiv:2603.17970) | +20-50% throughput | WATCH — Mar 2026; replaces Newton-Schulz with triangular Cholesky whitening; 1.3–2.6× tokens/sec vs Muon; lower per-step quality than MuonEq-R TBD |
+| Mousse (arXiv:2603.09697) | ~-0.002 to -0.003 | WATCH — Mar 2026; Kronecker-factored preconditioning for Muon; ~12% fewer steps; overhead risk at H100 scale |
 | Infini-gram interpolation (arXiv:2401.17377) | large but legal unclear | WATCH — suffix array ∞-gram, normalized; legal if score-first; high impl cost |
 | AdamW TTT (30 ep, train-then-score) | — | **ILLEGAL (PR #771 rejected)** |
 | N-gram hash cache | — | **ILLEGAL (normalization, Issue #1017)** |

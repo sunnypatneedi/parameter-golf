@@ -85,13 +85,28 @@ No breakthrough new papers found beyond those already tracked in CLAUDE.md. Conf
 |----------|-------|----------|-----------|------|
 | **NOW** | MuonEq: Balancing Before Orthogonalization | 2603.28254 | ~-0.005 | Low |
 | **NOW** | Compute-Optimal QAT (cooldown+QAT fusion) | 2509.22935 | ~-0.002 | Low |
-| Medium | Sparse Growing Transformer (SGT) | 2603.23998 | saves FLOP budget | Medium |
-| Medium | LaCT: Large Chunk TTT | 2505.23884 | better GPU util | Medium |
-| Medium | Two-Scale Latent Dynamics / early-exit recurrence | 2509.23314 | frees eval budget | Medium |
-| Watch | Newton-Muon | 2604.01472 | ~+4-6% steps | High (new) |
+| Medium | LaCT: Large Chunk TTT | 2505.23884 | ~-0.003 to -0.008 (GPU util 0→70%) | Medium |
+| Medium | Sparse Growing Transformer (SGT) | 2603.23998 | ~-0.001 to -0.003 indirect (saves FLOP) | Medium |
+| Medium | Two-Scale Latent Dynamics / early-exit recurrence | 2509.23314 | ~-0.001 indirect | Medium |
+| Watch | Newton-Muon | 2604.01472 | ~+4-6% steps | Medium (new, Apr 2026) |
+| Watch | **MUD (MomentUm Decorrelation)** | **2603.17970** | **+20-50% throughput** | **Medium — quality vs speed tradeoff** |
+| Watch | **Mousse** | **2603.09697** | **~-0.002 to -0.003** | **Medium-Hard — Kronecker overhead** |
+| Skip | ByteFlow (byte-level LM, no tokenizer) | 2603.03583 | N/A | Not applicable — incompatible with eval metric |
 
-New paper confirmed existing:
-- **"Thinking Deeper, Not Longer" (arXiv:2603.21676)**: Depth-recurrent transformer with silent thinking objective + LayerScale + identity-biased recurrence. Not directly applicable (focuses on compositional generalization, not compression), but confirms depth recurrence direction.
+### NEW Papers Not Previously Tracked
+
+**MUD: MomentUm Decorrelation (arXiv:2603.17970, Mar 2026)**
+Replaces Muon's Newton-Schulz polar decomposition with triangular (Cholesky-like) whitening via Gauss-Seidel solves. FLOPs per step ~12× smaller than Muon's Newton-Schulz. Results: 1.3–2.6× peak tokens/sec vs. Muon on most settings; up to 3× on GPT-2 large on A100; 10–50% wall-clock improvement in time-to-perplexity.
+- **Competition impact**: If the throughput gain holds on H100s, could mean +20–50% more training steps. However, per-step convergence quality vs. MuonEq-R is unknown. Run a 1xH100 ablation: MuonEq-R vs. MUD vs. Mousse before committing.
+- **Implementation**: Medium — replace Newton-Schulz iteration with triangular solve.
+
+**Mousse: Rectifying the Geometry of Muon (arXiv:2603.09697, Mar 2026)**
+Adds Kronecker-factored (Shampoo-style) preconditioning to Muon's polar update. Operates in a whitened coordinate system; polar decomposition applied after whitening.
+- ~12% reduction in training steps vs. Muon on 160M–800M models.
+- **Competition impact**: ~-0.002 to -0.003 bpb. Overhead of Kronecker factors at 8xH100 scale unknown. Lower priority than MuonEq-R; try only if MuonEq-R plateaus.
+
+**Confirmed existing papers (no change):**
+- "Thinking Deeper, Not Longer" (arXiv:2603.21676): Not applicable — focuses on compositional generalization with 20+ recurrence steps + silent objective. Triple Loop in PR #1420 is the competition-tuned variant.
 
 ---
 
@@ -130,4 +145,4 @@ Delta vs merged SOTA: ~0.037–0.040 nats (well above 0.005 threshold)
 
 ---
 
-_Updated: 2026-04-07 (v11.1 — N-gram Tilt causality bug found in PR #1420 by PR #1437: use #1437 kernel; PR #1430 likely illegal; PR #1423 illegal; merged SOTA unchanged 1.1147)_
+_Updated: 2026-04-07 (v11.2 — added MUD (2603.17970) and Mousse (2603.09697) to Watch list; N-gram Tilt bug use PR #1437 kernel; merged SOTA unchanged 1.1147)_
