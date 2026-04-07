@@ -66,14 +66,22 @@ The most dramatic claim in competition history. **Status: OPEN, no organizer rev
 
 This means **PR #1420's reported 1.08014 may include a non-causal n-gram tilt implementation.** Impact: ~0.003 bpb worse when bug is fixed. When implementing N-gram Tilt, use the corrected kernel from PR #1437 (not #1420). PR #1420 may face a correction request from reviewers.
 
-### Issue #140 Status
+### Issue #140 — CLOSED (Apr 6)
 
-No new rulings from @valerio-oai on:
-- SLOT delta-vector (standard or per-sample)
-- Causal SLOT
-- ETLB (Eval-Time Logit Bias)
+**Major update**: @notapplica closed the issue on Apr 6. @valerio-oai **never commented in Issue #140**. All official rulings came from PR comments and Issue #677.
 
-All three remain UNRULED. **Do not spend GPU on any of these until ruled.**
+**SLOT status — dramatically different from what we believed:**
+- **9 record PRs use SLOT variants** with no organizer rejection.
+- **PR #1333** (aryanbhosale, 1.0766 BPB): Causal SLOT-16, filed as record, OPEN — best legal-ish open PR
+- **PR #1229** (scored-position SLOT, 0.9300 BPB): Extraordinary; no organizer rejection
+- @abaybektursun's self-removal was a personal choice (causality concern), not an official ruling
+- @valerio-oai has never banned SLOT in any venue
+
+**Implication**: SLOT is de facto in use. The risk is @valerio-oai could rule on any SLOT PR at any time and retroactively reject it. Two tracks:
+- **Safe track**: PR #1437 stack + legal TTT → ~1.081 bpb, zero rejection risk
+- **SLOT track**: PR #1333 approach (Causal SLOT-16) → ~1.077 bpb or better, non-trivial rejection risk
+
+**ETLB**: Still unruled, not mentioned in Issue #140 at all.
 
 ---
 
@@ -119,30 +127,33 @@ Adds Kronecker-factored (Shampoo-style) preconditioning to Muon's polar update. 
 
 ## Recommended Action
 
-**Primary target: Implement PR #1420 stack with N-gram Tilt bug fix**
-- SP8192 + Triple Loop (17 virtual layers) + N-gram Tilt (**use PR #1437 corrected kernel**) + Fused Kernels
-- Expected: ~1.081 bpb (slightly worse than PR #1420 due to causality fix, consistent with PR #1437's 1.08091)
-- All legal. Start with SP8192 + Triple Loop + N-gram Tilt (fixed), confirm bpb, then add fused kernels.
-- **Critical**: Do NOT copy N-gram Tilt code directly from PR #1420 — use PR #1437's corrected causal implementation.
+**Two tracks — explicit decision required before GPU spend:**
 
-**Layer 2: Legal Score-First TTT (PR #1413 method)**
-- All blocks, 3ep, lr=0.005, score-first (inference_mode scoring before update)
-- Expected: ~-0.003 bpb → ~1.077 combined
+**Track A (safe, zero rejection risk):**
+- SP8192 + Triple Loop + N-gram Tilt (**use PR #1437 corrected causal kernel**) + Legal Score-First TTT (3ep, PR #1413) + Fused Kernels
+- Expected: ~1.078 bpb. Delta vs merged SOTA: ~0.036 nats.
+- Critical: Do NOT copy N-gram Tilt from PR #1420 — use PR #1437's corrected implementation.
 
-**DO NOT implement (legality concerns):**
-- PR #1430 techniques (per-sample SLOT, N-gram order-22 hash, TTT second pass) — await ruling
-- SLOT in any form (Issue #140 unruled)
+**Track B (higher EV, explicit rejection risk):**
+- Causal SLOT-16 + same base (equivalent to PR #1333, 1.0766 BPB)
+- Issue #140 CLOSED Apr 6; @valerio-oai never ruled on SLOT; 9 open record PRs use it.
+- Risk: @valerio-oai could close any SLOT PR at any time without prior warning.
+- **Recommendation**: File Track A first as the safe submission. Then file Track B as a second PR if Track A is clean. Two shots at the leaderboard.
+
+**Do NOT implement:**
+- PR #1430 techniques (per-sample SLOT + N-gram order-22 hash) — await organizer ruling
 - ETLB (unruled)
 - Pre-quant TTT (all variants illegal)
-- N-gram hash cache without proper normalization
 
 **Watch:**
-- PR #1430 organizer response — if ruled LEGAL, per-sample SLOT alone could be worth ~0.7 bpb. Extremely unlikely given past n-gram rulings. Monitor Issue #140 and PR #1430 comments.
-- PRs #1422–1444 for new legal techniques.
+- PR #1430 for organizer response — if N-gram hash is ruled legal this would change everything (unlikely)
+- PR #1333 and PR #1229 for any SLOT rulings from @valerio-oai on the actual PRs
 
-**Best reachable legal target: ~1.075–1.077 bpb** (PR #1420 stack + Legal TTT)
-Delta vs merged SOTA: ~0.037–0.040 nats (well above 0.005 threshold)
+**Best reachable target:**
+- Track A: ~1.078 bpb (guaranteed legal)
+- Track B: ~1.073–1.077 bpb (SLOT risk)
+- Both beat merged SOTA 1.1147 by >0.035 nats — well above the 0.005 threshold
 
 ---
 
-_Updated: 2026-04-07 (v11.2 — added MUD (2603.17970) and Mousse (2603.09697) to Watch list; N-gram Tilt bug use PR #1437 kernel; merged SOTA unchanged 1.1147)_
+_Updated: 2026-04-07 (v11.3 — Issue #140 CLOSED; SLOT de facto in use (9 PRs); PR #1333 (1.0766 causal SLOT) new best-open; two-track strategy; merged SOTA unchanged 1.1147)_

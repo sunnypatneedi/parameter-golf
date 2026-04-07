@@ -113,19 +113,20 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 ## Competition Strategy
 
 **Merged leaderboard SOTA**: 1.1147 val_bpb (abaybektursun, PR #1019, 2026-03-25) — NO CHANGE as of 2026-04-07
-**Best open legal PR**: ~1.0809 val_bpb (PR #1437, dexhunter, SP8192 + Parallel Residuals + 3-Layer Recurrence + N-gram Tilt [causal-fixed]) — see note on PR #1420 bug below
-**Best open any PR**: 1.07948 (PR #1416, SP8192 + Pre-Quant TTT — likely illegal)
-**Target**: Beat 1.1147 merged SOTA by >=0.005 nats. Best reachable legal target: ~1.075–1.077.
+**Best open legal PR**: ~1.0766 val_bpb (PR #1333, aryanbhosale, Causal SLOT-16 on PR #1334 base) — no organizer rejection
+**Best open without SLOT**: ~1.0809 val_bpb (PR #1437, dexhunter, SP8192 + Parallel Residuals + 3-Layer Recurrence + N-gram Tilt [causal-fixed])
+**Best open any PR**: 0.39642 (PR #1430, renqianluo, per-sample SLOT + N-gram order-22 — likely illegal)
+**Target**: Beat 1.1147 merged SOTA by >=0.005 nats. Best reachable target with SLOT: ~1.070–1.075. Without SLOT: ~1.077–1.081.
 
 **CRITICAL LEGALITY UPDATES**:
 - **PR #771 REJECTED (2026-03-27)** — Our AdamW TTT 30ep was train-then-score, not score-first. All 30-epoch TTT results are void.
 - **N-gram hash cache ILLEGAL** — PRs #727, #741 closed. PRs #731, #758 still open but unresolved.
-- **N-gram Tilt IS LEGAL (PR #1420)** — Normalized via softmax partition function Z: `p_tilt(t) = p_model(t) · exp(β · 1[t==hint]) / Z`. Causal (backward-looking only). -0.0029 bpb, zero artifact cost. This is the legal n-gram approach. **⚠️ PR #1420's kernel has a causality bug — use PR #1437's corrected implementation.**
-- **PR #1423 ILLEGAL (2026-04-07)** — Pre-quant TTT, same ruling as #1351/#1408/#1416. Flagged by abaybektursun.
-- **Score-first TTT ≤3 epochs IS LEGAL** — PR #1413 confirms all blocks trainable, lr=0.005, 3ep. -0.003 bpb.
-- **Pre-quant TTT ILLEGAL (all variants)** — PR #1351, #1416, #1408 all use pre-quant TTT. Do NOT use.
-- **SLOT δ-vector UNRULED** — Await @valerio-oai ruling in Issue #140. Do NOT spend GPU.
-- **ETLB UNRULED** — Eval-Time Logit Bias (PR #1399/#1415): learns `b ∈ ℝ^vocab` on context tokens each window. Reviewer questioned SLOT resemblance. -0.0019 bpb standalone. Await ruling before implementing.
+- **N-gram Tilt IS LEGAL (PR #1420)** — Normalized via softmax partition function Z: `p_tilt(t) = p_model(t) · exp(β · 1[t==hint]) / Z`. Causal (backward-looking only). -0.0029 bpb, zero artifact cost. **⚠️ PR #1420's kernel has a causality bug — use PR #1437's corrected implementation.**
+- **PR #1423 ILLEGAL (2026-04-07)** — Pre-quant TTT, same ruling as #1351/#1408/#1416.
+- **Score-first TTT ≤3 epochs IS LEGAL** — PR #1413: all blocks, lr=0.005, 3ep. -0.003 bpb.
+- **Pre-quant TTT ILLEGAL (all variants)** — PR #1351, #1416, #1408. Do NOT use.
+- **SLOT δ-vector: Issue #140 CLOSED (Apr 6), NO organizer ban** — @valerio-oai NEVER commented in Issue #140. 9 record PRs use SLOT variants without rejection. @abaybektursun self-removed (causality concern) but no official rule. Causal SLOT-16 (PR #1333, 1.0766 BPB) is the current best open record claim. Scored-position SLOT (PR #1229) reached 0.9300 BPB. **RISK: causality concern unresolved; @valerio-oai could rule at any time on PRs. Implement only if willing to accept rejection risk.**
+- **ETLB UNRULED** — PR #1399/#1415; no ruling; -0.0019 bpb standalone. Await before implementing.
 
 **Current approach (PR #1420 stack + legal TTT)**:
 1. **SP8192 vocab** — beats SP4096 by ~0.009 bpb (PR #1420 vs #1334)
@@ -140,7 +141,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 10. **Legal Score-First TTT (post-quant only)** — all blocks, 3ep, lr=0.005, score-first (PR #1413)
 11. **Fused Kernels** — Triton TMA (forward) + CUTLASS 3.x (backward), +10% throughput (+127 steps) — add last, complex
 
-**Key reference PRs**: #1019 (merged SOTA 1.1147), #1437 (1.08091, causal-fixed N-gram Tilt — use this kernel), #1420 (1.08014 but N-gram Tilt has causality bug), #1413 (1.08279, SP8192+Legal TTT), #1334 (1.0897, cleanest arch reference), #1370 (1.003, Gated DeltaNet, non-record)
+**Key reference PRs**: #1019 (merged SOTA 1.1147), #1333 (1.0766, Causal SLOT-16, open record — best with SLOT), #1437 (1.08091, causal-fixed N-gram Tilt kernel — use this), #1420 (1.08014, N-gram Tilt has causality bug), #1413 (1.08279, SP8192+Legal TTT), #1334 (1.0897, cleanest arch reference), #1229 (0.9300, scored-position SLOT, open), #1370 (1.003, Gated DeltaNet, non-record)
 
 **Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), custom Triton kernels (poor EV — REVERTED: PR #1420 shows +10% via Triton TMA, revisit after base works), int4 without QAT (quality-destructive), eval stride=32 (time budget), AdamW TTT 30ep (illegal), n-gram hash cache (illegal), pre-quant TTT any form (illegal).
 
@@ -151,9 +152,10 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | Technique | Approx Δ bpb | Status |
 |-----------|-------------|--------|
 | **Pre-quant TTT (any form, before GPTQ)** | — | **ILLEGAL — PR #1351, #1408, #1416 all illegal; pre-eval adaptation** |
-| **Standard SLOT δ-vector (arXiv:2505.12392)** | **-0.021** | **BLOCKED — Issue #140: causality dispute, no ruling from @valerio-oai** |
-| **ETLB (Eval-Time Logit Bias)** | **-0.0019** | **UNRULED — PR #1399/#1415; reviewer questioned SLOT resemblance; await ruling** |
-| **Causal SLOT (scored-position only)** | **-0.009** | **BLOCKED — await @valerio-oai ruling (Issue #140)** |
+| **Standard SLOT δ-vector (arXiv:2505.12392)** | **-0.021** | **DE FACTO IN USE — Issue #140 CLOSED (Apr 6); 9 record PRs use SLOT variants; no organizer rejection. @valerio-oai never ruled in #140. @abaybektursun self-removed (causality concern) but no ban.** |
+| **Causal SLOT-16 (scored-position delta only)** | **-0.009** | **DE FACTO IN USE — PR #1333 (aryanbhosale, 1.0766 BPB, open record); PR #1229 (scored-position SLOT, 0.9300 BPB). No organizer rejection.** |
+| **Scored-Position SLOT (PR #1229)** | **~-0.18 vs base** | **Extraordinary — 0.9300 BPB; no organizer rejection; causality concern still present** |
+| **ETLB (Eval-Time Logit Bias)** | **-0.0019** | **UNRULED — PR #1399/#1415; no ruling from @valerio-oai; await before implementing** |
 | **N-gram Tilt (PR #1437 kernel)** | **-0.0029** | **LEGAL — properly normalized via Z; causal; zero artifact cost. PR #1420 has causality bug — use PR #1437** |
 | **Triple Loop (3× depth recurrence)** | **~-0.009 vs 2×** | **PRIMARY — PR #1420 (1.08014); 17 virtual layers; activate at 0.35× training** |
 | **SP8192 vocab** | **~-0.009 vs SP4096** | **PRIMARY — PR #1420/#1413; use over SP4096** |
@@ -282,5 +284,7 @@ Every change must answer: "Does this lower val_bpb within the 16MB/10-min constr
 36. **N-gram Tilt in PR #1420 has a causality bug.** PR #1437 (dexhunter) independently found and fixed it. Pre-fix: 1.07807 bpb; post-fix: 1.08091 bpb. Always use PR #1437's corrected kernel. Do NOT copy the n-gram tilt implementation from PR #1420 directly.
 37. **Extraordinary score claims (0.396 bpb) are almost always illegal.** PR #1430 by renqianluo claims 0.39642 via per-sample SLOT + N-gram order-22 hash + TTT. N-gram hash without proper normalization = same pattern as #727/#741 (closed). Per-sample SLOT (196K params per sequence trained on val data) strains the spirit of eval rules. Expect rejection.
 38. **The competition is accelerating.** PRs #1421–1444 filed in one day (Apr 6–7). Check PRs list every session — the landscape shifts fast.
+39. **Issue #140 closed (Apr 6). @valerio-oai never ruled there.** All official rulings came from direct PR comments and Issue #677. SLOT has never been officially banned — 9 record PRs use it. Causal SLOT-16 (PR #1333, 1.0766 BPB) is a credible target. The SLOT causality concern is real but unresolved. Accept the risk explicitly if implementing.
+40. **Scored-position SLOT (PR #1229) reached 0.9300 BPB.** This is the highest-quality legal-ish technique in the competition. If @valerio-oai rules it legal, it would leapfrog everything. High risk, high reward — do NOT implement without explicit decision to accept rejection risk.
 
-_Updated: 2026-04-07 (v11.0 — N-gram Tilt bug: use PR #1437 kernel not #1420; PR #1430 likely illegal (0.39642 claim); PR #1423 illegal; merged SOTA unchanged 1.1147)_
+_Updated: 2026-04-07 (v11.1 — Issue #140 CLOSED; SLOT de facto in use (9 PRs, no ban); PR #1333 (1.0766 causal SLOT) new best-open; two-track strategy (safe + SLOT); N-gram Tilt bug (use PR #1437 kernel); merged SOTA unchanged 1.1147)_
