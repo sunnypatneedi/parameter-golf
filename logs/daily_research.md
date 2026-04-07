@@ -49,9 +49,22 @@ The most dramatic claim in competition history. **Status: OPEN, no organizer rev
 
 ### Other New PRs (Apr 6–7, 2026)
 
-PRs #1421–1444 filed Apr 6–7. Most are likely stacking variations on PR #1334/#1420 architecture. Highlighted:
-- **#1421** (X-Abhishek-X, 1.0925): EMA decay 0.9965 tuning on PR #1334 base — LEGAL
-- **#1422–#1444**: Not individually reviewed; check for new sub-1.08 entries
+| PR | Author | Score | Notes | Legal? |
+|----|--------|-------|-------|--------|
+| **#1437** | dexhunter | **1.08091** | SP8192 + Parallel Residuals + 3-Layer Recurrence + N-gram Tilt | **YES — but reveals causality bug (see below)** |
+| #1423 | aryanbhosale | 1.0791 | SP8192 + Pre-Quant TTT + QK-Gain 5.0 | **ILLEGAL — flagged by abaybektursun: "fine-tuning on val data for 6 epochs before quantization"** |
+| #1424 | OnlyJundong | 1.0858 | Extended compute (50K steps) | Non-record (>10 min) |
+| #1421 | X-Abhishek-X | 1.0925 | Depth Recurrence + EMA tuning | Legal |
+| #1435 | AbhayAnandUCSD | 1.0980 | Depth Recurrence + BigramHash + EMA 0.9965 | No flags |
+| #1440 | Mertyandimata | 1.1026 | EngramLite + Mousse + Progressive Depth Recurrence + TTT | No flags |
+
+### ⚠️ N-gram Tilt Causality Bug (PR #1437)
+
+**PR #1437 independently found and disclosed a causality bug in the N-gram Tilt kernel that also affects PR #1420.** dexhunter's results:
+- Pre-fix (bugged): 1.07807 bpb
+- Post-fix (correct causal): 1.08091 bpb
+
+This means **PR #1420's reported 1.08014 may include a non-causal n-gram tilt implementation.** Impact: ~0.003 bpb worse when bug is fixed. When implementing N-gram Tilt, use the corrected kernel from PR #1437 (not #1420). PR #1420 may face a correction request from reviewers.
 
 ### Issue #140 Status
 
@@ -91,10 +104,11 @@ New paper confirmed existing:
 
 ## Recommended Action
 
-**Primary target: Implement PR #1420 stack (unchanged from yesterday)**
-- SP8192 + Triple Loop (17 virtual layers) + N-gram Tilt (normalized, legal) + Fused Kernels
-- Expected: ~1.080 bpb
-- All legal. Start with SP8192 + Triple Loop + N-gram Tilt, confirm bpb, then add fused kernels.
+**Primary target: Implement PR #1420 stack with N-gram Tilt bug fix**
+- SP8192 + Triple Loop (17 virtual layers) + N-gram Tilt (**use PR #1437 corrected kernel**) + Fused Kernels
+- Expected: ~1.081 bpb (slightly worse than PR #1420 due to causality fix, consistent with PR #1437's 1.08091)
+- All legal. Start with SP8192 + Triple Loop + N-gram Tilt (fixed), confirm bpb, then add fused kernels.
+- **Critical**: Do NOT copy N-gram Tilt code directly from PR #1420 — use PR #1437's corrected causal implementation.
 
 **Layer 2: Legal Score-First TTT (PR #1413 method)**
 - All blocks, 3ep, lr=0.005, score-first (inference_mode scoring before update)
@@ -116,4 +130,4 @@ Delta vs merged SOTA: ~0.037–0.040 nats (well above 0.005 threshold)
 
 ---
 
-_Updated: 2026-04-07 (v11.0 — PR #1430 flagged: 0.39642 bpb claim, likely illegal; merged SOTA unchanged 1.1147; legal path remains PR #1420 stack)_
+_Updated: 2026-04-07 (v11.1 — N-gram Tilt causality bug found in PR #1420 by PR #1437: use #1437 kernel; PR #1430 likely illegal; PR #1423 illegal; merged SOTA unchanged 1.1147)_
