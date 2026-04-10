@@ -1,3 +1,174 @@
+# Parameter Golf Daily Research - 2026-04-10
+
+## PR #771 STATUS: CLOSED (REJECTED) — CONFIRMED
+
+Same ruling as 2026-04-07. AdamW TTT 30ep was train-then-score. No new comments. No appeal path.
+
+---
+
+## N-GRAM PR STATUS
+
+| PR | Score | Status | Notes |
+|----|-------|--------|-------|
+| #727 | 0.9674 | **CLOSED** (illegal) | Hashed n-gram cache, unnormalized — closed Mar 27 |
+| #741 | 0.9850 | **CLOSED** (illegal) | Author self-closed Mar 30, unnormalized hash |
+| #758 | 1.0465 | **OPEN** | 7-gram backward-looking cache, no organizer ruling |
+| #731 | 1.0400 | **OPEN** | 5-expert Hedge Mixer, no ruling ("same risk" noted) |
+
+---
+
+## Leaderboard — ⚠️ MAJOR UPDATE
+
+- **Merged SOTA**: **1.0810** val_bpb (bigbag, PR #1493, 2026-04-09) — **DROP FROM 1.1147 (WAS STALE)**
+- **Best open legal PR**: ~1.0778 (PR #1523, EthanYangTW, Triple Recurrence + Banking + Fused MLP)
+- **Best open with SLOT**: 1.0766 (PR #1333, aryanbhosale, Causal SLOT-16, no ruling)
+- **Best open (pre-quant TTT, likely illegal)**: 1.0632 (PR #1517, RulinShao)
+- **Our PR #771**: 1.0705 — CLOSED/REJECTED
+- **New target**: beat 1.0810 by ≥0.005 → need **≤1.0760 bpb**
+
+### Recently Merged Records (Apr 6–9, 2026)
+
+| PR | Author | Score | Date | Key Technique |
+|----|--------|-------|------|---------------|
+| **#1493** | bigbag | **1.0810** | Apr 9 | SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25 + Legal TTT |
+| #1477 | aryanbhosale | 1.0822 | Apr 8 | SP8192 + Parallel Residuals + Score-First TTT |
+| #1413 | dexhunter | 1.0828 | Apr 6 | SP8192 + QK-Gain 5.0 + Legal Score-First TTT |
+| #1412 | Robby Sneiderman | 1.0835 | Apr 6 | SP8192 + Parallel Residuals + Hessian-aware SDClip |
+| #1394 | Kevin Clark | 1.0856 | Apr 5 | SP8192 + GPTQ Embeddings + Depth Recurrence + SDClip |
+
+Four records merged since last report. The competition moved from 1.1147 → 1.0810 in 3 weeks. Pace is accelerating.
+
+---
+
+## What Changed (GitHub)
+
+### Best Open PRs (as of Apr 10)
+
+| PR | Author | Score | Techniques | Legality |
+|----|--------|-------|------------|----------|
+| **#1523** | EthanYangTW | **1.0778** | Triple Recurrence (blocks 3-4-5 repeated) + Parameter Banking + Fused MLP (Triton TMA) + Muon 0.97 + Eval-Time Hash Embedding | ⚠️ Eval-Time Hash Embedding potentially illegal |
+| **#1518** | abaybektursun | **1.078825** | Wider Loop (blocks 3-5 × 3 passes) + Per-Pass Embeddings + Tap-In V6 + Legal TTT | ⚠️ Tap-In V6 legality unclear |
+| **#1514** | dexhunter | **1.07983** | SP8192 + Muon 0.97 + N-gram Tilt (causal) + Legal TTT | **Legal** |
+| **#1333** | aryanbhosale | 1.0766 | Causal SLOT-16 (16-step AdamW delta on scored positions) | ⚠️ Unruled |
+| **#1517** | RulinShao | 1.0632 | Depth Recurrence + Banked Muon + Pre-Quant TTT 18ep | **ILLEGAL** — pre-quant TTT |
+
+### New Technique Deep-Dives
+
+**1. ANS Weight Compression (PR #1510, OE-GOD, OPEN)**
+- Replaces LZMA with per-layer rANS (range Asymmetric Numeral Systems) encoding
+- Uses per-layer histogram frequencies to encode int6 symbols at near-entropy-limit
+- **Claimed: 1.6MB lossless savings** → within 11KB of theoretical entropy limit
+- **Impact: ~2.2M extra parameters within the same 16MB budget**
+- No model quality change — purely compression efficiency
+- No organizer flags, no legality issue
+- **RECOMMENDATION: HIGH PRIORITY — implement before next GPU run**
+
+**2. Per-Pass Loop Embeddings (PR #1518, abaybektursun)**
+- 3 learned 512-dim vectors added to residual stream before each loop pass
+- Allows model to differentiate loop iterations without weight sharing workaround
+- **Reduces quantization gap from 0.0131 → 0.0114** (tighter post-quant performance)
+- Δbpb: small standalone, compounds with GPTQ calibration improvement
+- Low implementation cost (~10 lines)
+- **RECOMMENDATION: ADD to next run after ANS compression**
+
+**3. Wider Depth Recurrence (PR #1518)**
+- Loops blocks 3-5 (3 blocks) × 3 passes = 9 total executions, vs blocks 4-5 (2 blocks) × current
+- Same compute but more parameter diversity per loop pass
+- Better post-quantization performance (fewer params per block = less GPTQ error)
+- **RECOMMENDATION: Evaluate vs. current Triple Loop in ablation (1xH100)**
+
+**4. Parameter Banking + Parallel Muon (PR #1523, EthanYangTW)**
+- Consolidates 66 weight matrices into 4 contiguous memory banks
+- Enables batched Newton-Schulz iterations: **15× faster optimizer step**
+- Throughput: +3.8% from banking alone, +5.2% combined with Fused MLP
+- Zero impact on model quality; purely systems optimization
+- Pairs naturally with existing Fused Kernels (Triton TMA)
+- **RECOMMENDATION: HIGH PRIORITY — add +5.2% throughput for free steps**
+
+**5. Muon Momentum 0.97 (PRs #1514, #1523)**
+- Reduce momentum from default 0.99 to 0.97
+- Δbpb: **-0.0004** standalone
+- Zero implementation cost (1 hyperparameter change)
+- **RECOMMENDATION: Change immediately**
+
+**6. QK-Gain 5.25 (PR #1493, merged SOTA)**
+- Current plan uses 5.0 from PR #1334/#1420
+- Monotonic improvement: 5.25 was tested in the merged SOTA (1.0810)
+- **RECOMMENDATION: Change 5.0 → 5.25**
+
+**7. Tap-In V6 (PR #1518, abaybektursun) — LEGALITY UNCLEAR**
+- Document-local matching at eval time: scans backward in same document for matching phrase continuations, nudges probability distribution upward
+- Effectively a document-scope n-gram-style hint (not pre-loaded cache)
+- ⚠️ Needs @valerio-oai ruling before implementing. Similar spirit to n-gram tilt but operating on already-seen document context. May be legal if causal.
+- **RECOMMENDATION: Do NOT implement until ruled on. Watch PR #1518 for organizer feedback.**
+
+**8. Eval-Time Hash Embedding (PR #1523) — SUSPECT**
+- 16384×512 bigram hash table with zero initialization, trained during inference
+- This is adapting parameters during evaluation — similar pattern to illegal pre-quant TTT
+- ⚠️ May violate "no adaptation before scoring" rule
+- **RECOMMENDATION: Do NOT implement. High rejection risk.**
+
+**9. BPB-Weighted Training Loss (PR #1519, definenoob) — WITHDRAWN**
+- Weight each token's CE loss by UTF-8 byte count to align training with BPB metric
+- Author retracted ("had an out of date repo")
+- Only effective for small vocabs (not SP8192)
+- **SKIP**
+
+---
+
+## New Research Papers
+
+| Priority | Paper | arXiv ID | Δ bpb est. | Notes |
+|----------|-------|----------|-----------|-------|
+| **HIGH** | rANS for Neural Network Feature Compression | 2511.11664 | — | Theory behind PR #1510 ANS compression; confirms approach is sound |
+| **HIGH** | Newton-Muon Optimizer | 2604.01472 | ~+6% fewer steps | Interprets Muon as Newton; 4% wall-clock reduction; already in CLAUDE.md "Watch" |
+| Medium | MuonBP (Block-Periodic Muon) | openreview | ~+8% throughput | Block-periodic Newton-Schulz; bridges throughput gap; less data-efficient than Muon |
+| Medium | LaCT: Large Chunk TTT | 2505.23884 | GPU util 0→70% | Large-chunk post-quant TTT; already tracked |
+| Low | End-to-End TTT for Long Context | 2512.23675 | N/A | Long-context meta-learning; not applicable at our scale |
+
+**No new breakthrough papers found beyond those already tracked in CLAUDE.md.**
+
+---
+
+## HuggingFace / Community Discoveries
+
+- None today beyond GitHub PR activity.
+
+---
+
+## Recommended Action
+
+**New target: ≤1.0760 bpb (beat merged SOTA 1.0810 by ≥0.005 nats)**
+
+**Priority 0 — Zero-cost wins (do before next GPU run):**
+1. Muon momentum 0.97 (was 0.99) — free -0.0004 bpb
+2. QK-Gain 5.25 (was 5.0) — free improvement per merged SOTA
+
+**Priority 1 — Systems gains (no quality regression):**
+3. ANS weight compression (PR #1510) — 1.6MB freed → +2.2M params capacity; implement lossless
+4. Parameter Banking + Parallel Muon (PR #1523) — +5.2% throughput → ~+30 extra training steps
+
+**Priority 2 — Architecture improvements (1xH100 ablation first):**
+5. Per-Pass Loop Embeddings (PR #1518) — reduces quant gap; low implementation cost
+6. Wider Recurrence (blocks 3-5 × 3 passes vs blocks 4-5) — ablate vs current Triple Loop
+
+**Do NOT implement:**
+- Pre-Quant TTT any form (PR #1517) — illegal
+- Eval-Time Hash Embedding (PR #1523) — suspect legality
+- Tap-In V6 (PR #1518) — await ruling
+- N-gram hash cache (PRs #727, #741 pattern) — illegal
+
+**Watch:**
+- PR #1518 for Tap-In V6 organizer ruling from @valerio-oai
+- PR #1333 for Causal SLOT-16 ruling (if ruled legal, implement for additional -0.003 bpb)
+- PR #1523 being evaluated by organizers (Eval-Time Hash Embedding may be flagged)
+
+---
+
+_Updated: 2026-04-10 (v11.4 — Merged SOTA updated 1.1147→1.0810; 4 new records; new target ≤1.0760; ANS compression HIGH priority; Parameter Banking HIGH priority)_
+
+---
+
 # Parameter Golf Daily Research - 2026-04-07
 
 ## PR #771 STATUS: CLOSED (REJECTED)
