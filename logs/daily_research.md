@@ -1,3 +1,109 @@
+# Parameter Golf Daily Research - 2026-04-11
+
+## PR #771 STATUS: CLOSED (REJECTED) — FINAL
+
+@valerio-oai: "you're first adapting your model to the eval tokens with TTT for multiple epochs, and then reporting val numbers on those tokens you've already trained on, so this is not an allowable submission." No new comments. No appeal path. Fully dead.
+
+---
+
+## N-GRAM PR STATUS
+
+| PR | Score | Status | Notes |
+|----|-------|--------|-------|
+| #727 | 0.9674 | **CLOSED** (illegal) | Hashed n-gram cache, unnormalized |
+| #741 | 0.9850 | **CLOSED** (illegal) | Self-closed, same ruling |
+| #758 | 1.0465 | **OPEN** (flagged) | MatoTeziTanka flagged: TTT contradiction + unnormalized n-gram; effectively dead, no organizer ruling |
+| #731 | 1.0400 | **OPEN** | 5-expert Hedge Mixer, no new ruling |
+
+---
+
+## Leaderboard
+
+- **Merged SOTA**: **1.0810** val_bpb (bigbag, PR #1493, 2026-04-09) — **NO CHANGE** since yesterday
+- **Best open legal PRs (new today)**:
+  - PR #1541 (bigbag, **1.07785**): SP8192 + Improved Parallel Residuals + Muon 0.97 — under clarification on hash embed flag
+  - PR #1540 (aryanbhosale, **1.0777**): SP8192 + VarLen Attention + Doc-Independent LoRA TTT — batch ordering question resolved by author
+  - PR #1533 (aryanbhosale, **1.0790**): SP8192 + Banking + Triple Recurrence
+  - PR #1523 (EthanYangTW, 1.0778): still open with ⚠️ hash embedding flag
+- **Best open (illegal)**: PR #1539 (translatingthename, 1.0587): Pre-Quant AdamW TTT — same ruling pattern as #771; flagged by reviewer
+- **Bogus claim**: PR #1545 (Abhishek8108, 1.028): BUG — double-counting inflates byte count ~14%; real score ~1.18 BPB
+- **Non-record**: PR #1535 (newjordan, 1.07424983) is a 4-HOUR run; 10-min legal version = 1.135 BPB
+
+**Target unchanged**: ≤1.0760 bpb (beat merged SOTA 1.0810 by ≥0.005 nats)
+
+---
+
+## What Changed (GitHub)
+
+### New Open PRs (Apr 10–11, 2026)
+
+| PR | Author | Score | Key Technique | Legality |
+|----|--------|-------|---------------|----------|
+| **#1541** | bigbag | **1.07785** | Improved Parallel Residuals (cross-lane learned scalars) + Muon 0.97 + MATRIX_LR=0.03 | ⚠️ hash embed flag (logs show `ttt_hash_embed: True`) — author clarification pending |
+| **#1540** | aryanbhosale | **1.0777** | VarLen Attention (within-doc only) + Doc-Independent LoRA TTT rank-96 (resets per batch) + Triton TMA MLP (+5%) | **Appears legal** — batch ordering concern resolved; LoRA resets to zero each batch |
+| #1539 | translatingthename | 1.0587 | Pre-Quant AdamW TTT | **ILLEGAL** — flagged as structurally identical to #1376; train-before-score |
+| #1533 | aryanbhosale | 1.0790 | SP8192 + Banking + Triple Recurrence | Legal — but no new techniques vs. plan |
+| #1532 | nogakeren | 1.0803 | SP8192 + 3-Layer Recurrence + QK-Gain | Legal |
+| #1535 | newjordan | 1.07424 | 7F+3C depth-recurrent hybrid | **Non-record** (4 hours); 10-min = 1.135 |
+| #1545 | Abhishek8108 | ~~1.028~~ | GDN + SWA hybrid | **BUG**: byte double-counting inflates BPB by 14%; real ~1.18 |
+
+### Technique Details: PR #1541 (bigbag) — Improved Parallel Residuals
+- Cross-lane routing: attention and MLP outputs go to **both** lanes via learned scalars, not same-lane only
+- Starts at layer 7 (same as merged SOTA)
+- Muon momentum 0.97 + MATRIX_LR = 0.03 (co-tuned pair)
+- Builds on PR #1493 merged SOTA stack
+- **Note**: bigbag is the merged SOTA author — his next PR is the one to watch for merge
+
+### Technique Details: PR #1540 (aryanbhosale) — Doc-Independent LoRA TTT
+- VarLen attention masks attention to within-document tokens only (no cross-doc contamination)
+- Rank-96 LoRA adapter initialized to zero each batch, trained score-first during eval
+- Adapter is discarded after each document — zero state leakage across docs
+- This is fundamentally different from our abandoned LoRA TTT (which was static, not score-first)
+- Fused Triton TMA MLP: +5% throughput
+- **Legality verdict**: Appears score-first compliant; batch ordering concern resolved
+
+---
+
+## New Research Papers
+
+No new breakthrough papers today beyond those already tracked.
+
+| Paper | arXiv ID | Notes |
+|-------|----------|-------|
+| pQuant: Decoupled Linear QAT | 2602.22592 | Feb 2026; 1-bit params packed UINT8; not applicable to our int6 GPTQ |
+| MuonEq-R | 2603.28254 | Already tracked — confirmed row/column normalization before Newton-Schulz; O(m+n) overhead |
+| Newton-Muon | 2604.01472 | Already tracked — WATCH; ~+4-6% steps |
+
+---
+
+## HuggingFace / Community Discoveries
+
+None today.
+
+---
+
+## Recommended Action
+
+**No change to strategy from 2026-04-10 report. Refined priorities:**
+
+1. **WATCH PR #1541** (bigbag, 1.07785): Cross-lane Improved Parallel Residuals is a new technique not in our plan. If merged, it sets a new record and raises our target. Hash embed flag needs resolution — check again tomorrow.
+
+2. **ADOPT PR #1540's LoRA TTT approach**: Doc-independent rank-96 LoRA resetting per batch is categorically different from the abandoned training-time LoRA TTT. Score-first, zero artifact size cost. Worth adding to our stack after ANS compression and banking.
+
+3. **Avoid PR #1539 pattern**: Pre-quant AdamW TTT confirmed flagged — same ruling as #771.
+
+4. **Priority stack remains** (from Apr 10 report):
+   - ANS weight compression (PR #1510) — 1.6MB freed, HIGH PRIORITY
+   - Parameter Banking + Parallel Muon (PR #1523) — +5.2% throughput
+   - Per-Pass Loop Embeddings (PR #1518) — reduces quant gap
+   - Muon 0.97 + QK-Gain 5.25 — free wins (2-line change)
+
+---
+
+_Updated: 2026-04-11 (v11.5 — PR #1541 bigbag 1.07785 and PR #1540 aryanbhosale 1.0777 new open PRs; PR #1539 pre-quant illegal; PR #1545 BPB bug; LoRA TTT doc-independent approach appears legal; no merged SOTA change)_
+
+---
+
 # Parameter Golf Daily Research - 2026-04-10
 
 ## PR #771 STATUS: CLOSED (REJECTED) — CONFIRMED

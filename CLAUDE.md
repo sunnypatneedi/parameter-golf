@@ -113,7 +113,10 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 ## Competition Strategy
 
 **Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — UPDATED FROM 1.1147 (was stale)
-**Best open legal PR**: ~1.0778 val_bpb (PR #1523, EthanYangTW, Triple Recurrence + Banking + Fused MLP + Muon 0.97) — ⚠️ Eval-Time Hash Embedding may be flagged; PR #1514 (dexhunter, 1.07983) is cleaner
+**Best open legal PRs (Apr 11)**:
+  - PR #1541 (bigbag, **1.07785**): Improved Parallel Residuals (cross-lane learned scalars) + Muon 0.97 — ⚠️ hash embed flag pending clarification
+  - PR #1540 (aryanbhosale, **1.0777**): VarLen Attention + Doc-Independent LoRA TTT rank-96 + Triton TMA — appears legal
+  - PR #1523 (EthanYangTW, 1.0778): Triple Recurrence + Banking + Fused MLP + Muon 0.97 — ⚠️ Eval-Time Hash Embedding may be flagged; PR #1514 (dexhunter, 1.07983) is cleaner
 **Best open with SLOT**: ~1.0766 val_bpb (PR #1333, aryanbhosale, Causal SLOT-16 on PR #1334 base) — no organizer rejection
 **Best open (illegal)**: 1.0632 (PR #1517, RulinShao, Pre-Quant TTT 18ep — same ruling as #1351/#1416)
 **Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable: ~1.074–1.077 (legal stack). With SLOT: ~1.073–1.076.
@@ -128,25 +131,23 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 - **SLOT δ-vector: Issue #140 CLOSED (Apr 6), NO organizer ban** — @valerio-oai NEVER commented in Issue #140. 9 record PRs use SLOT variants without rejection. @abaybektursun self-removed (causality concern) but no official rule. Causal SLOT-16 (PR #1333, 1.0766 BPB) is the current best open record claim. Scored-position SLOT (PR #1229) reached 0.9300 BPB. **RISK: causality concern unresolved; @valerio-oai could rule at any time on PRs. Implement only if willing to accept rejection risk.**
 - **ETLB UNRULED** — PR #1399/#1415; no ruling; -0.0019 bpb standalone. Await before implementing.
 
-**Current approach (PR #1493 merged SOTA stack + improvements)**:
+**Current approach (PR #1420 stack + legal TTT)**:
 1. **SP8192 vocab** — beats SP4096 by ~0.009 bpb (PR #1420 vs #1334)
-2. **Triple Loop (17 virtual layers)** — layers 4-5 repeated 3× (not 2×), activated at 0.35× training; investigate Wider Loop (blocks 3-5 × 3 passes, PR #1518)
+2. **Triple Loop (17 virtual layers)** — layers 4-5 repeated 3× (not 2×), activated at 0.35× training
 3. **Parallel Residuals (layers 7-10)** — GPT-J style, faster forward pass, tighter GPTQ calibration
-4. **MuonEq-R optimizer + momentum 0.97** — arXiv:2603.28254; reduce from 0.99→0.97 (PR #1514, #1523): free -0.0004 bpb
+4. **MuonEq-R optimizer** — arXiv:2603.28254; in PR #1334, #1344, #1420
 5. **4× MLP expansion** — vs 3× in older SOTA
 6. **XSA on all 11 layers** — exclusive self-attention
-7. **GPTQ int6 + WD=0.085** — Hessian-aware quantization; SDClip variant
-8. **QK-Gain 5.25** — updated from 5.0; monotonic improvement confirmed in merged SOTA PR #1493
+7. **GPTQ int6 + WD=0.085** — Hessian-aware quantization; SDClip variant in PR #1420
+8. **QK-Gain 5.0** — from PR #1334/#1420
 9. **N-gram Tilt** — -0.0029 bpb, legal, zero artifact cost — use **PR #1437 kernel** (not #1420, which has a causality bug)
-10. **Legal Score-First TTT (post-quant only)** — all blocks, 3ep, lr=0.005, score-first (PR #1413); try lr=0.01 (PR #1523: -0.0003 bpb)
-11. **ANS Weight Compression** — replace LZMA with rANS per-layer histogram encoding; **1.6MB freed = +2.2M params** (PR #1510, HIGH PRIORITY)
-12. **Parameter Banking + Parallel Muon** — 66 matrices → 4 banks, batched Newton-Schulz, +5.2% throughput (PR #1523, HIGH PRIORITY)
-13. **Per-Pass Loop Embeddings** — 3 learned 512-dim vectors before each loop pass; reduces quant gap 0.0131→0.0114 (PR #1518)
-14. **Fused Kernels** — Triton TMA (forward) + CUTLASS 3.x (backward), +10% throughput (+127 steps) — add last, complex
+10. **Legal Score-First TTT (post-quant only)** — all blocks, 3ep, lr=0.005, score-first (PR #1413)
+11. **Fused Kernels** — Triton TMA (forward) + CUTLASS 3.x (backward), +10% throughput (+127 steps) — add last, complex
 
-**Key reference PRs**: #1493 (merged SOTA 1.0810, bigbag, Apr 9 — 3-Layer Recur + Parallel Res + QK5.25 + TTT), #1333 (1.0766, Causal SLOT-16, open record — best with SLOT), #1523 (1.0778, EthanYangTW, Banking + Triple Recur + Fused MLP — ⚠️ Hash Emb), #1518 (1.078825, abaybektursun, Wider Loop + Per-Pass Emb + Tap-In V6), #1514 (1.07983, dexhunter, Muon 0.97 + N-gram Tilt — cleanest legal open PR), #1437 (1.08091, causal-fixed N-gram Tilt kernel — use this), #1413 (1.08279, SP8192+Legal TTT), #1334 (1.0897, cleanest arch reference), #1510 (ANS compression, 1.6MB savings), #1229 (0.9300, scored-position SLOT, open), #1370 (1.003, Gated DeltaNet, non-record)
+**Key reference PRs**: #1019 (merged SOTA 1.1147), #1333 (1.0766, Causal SLOT-16, open record — best with SLOT), #1437 (1.08091, causal-fixed N-gram Tilt kernel — use this), #1420 (1.08014, N-gram Tilt has causality bug), #1413 (1.08279, SP8192+Legal TTT), #1334 (1.0897, cleanest arch reference), #1229 (0.9300, scored-position SLOT, open), #1370 (1.003, Gated DeltaNet, non-record)
 
-**Abandoned approaches**: LoRA TTT (hurts), product quantization (SWA-incompatible), custom Triton kernels (poor EV — REVERTED: PR #1420 shows +10% via Triton TMA, revisit after base works), int4 without QAT (quality-destructive), eval stride=32 (time budget), AdamW TTT 30ep (illegal), n-gram hash cache (illegal), pre-quant TTT any form (illegal), Eval-Time Hash Embedding trained at inference (suspect illegal — same adapt-then-score pattern), Tap-In V6 document-local matching (await ruling).
+**Abandoned approaches**: Training-time static LoRA TTT (hurts), product quantization (SWA-incompatible), custom Triton kernels (poor EV — REVERTED: PR #1420 shows +10% via Triton TMA, revisit after base works), int4 without QAT (quality-destructive), eval stride=32 (time budget), AdamW TTT 30ep (illegal), n-gram hash cache (illegal), pre-quant TTT any form (illegal), Eval-Time Hash Embedding trained at inference (suspect illegal — same adapt-then-score pattern), Tap-In V6 document-local matching (await ruling).
+**NOTE**: Doc-Independent LoRA TTT (PR #1540, rank-96, resets per batch, score-first) is categorically DIFFERENT from abandoned LoRA TTT and appears legal — consider adopting.
 
 ---
 
@@ -182,14 +183,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | Partial RoPE (16/64) + LN Scale | -0.002 | In SOTA |
 | Gated DeltaNet (PR #1370) | ~-0.11 vs baseline | Non-record (>10 min); O(n) linear attention |
 | **MuonEq-R (arXiv:2603.28254)** | **~-0.005** | **NOW — drop-in Muon swap; normalize row norms before Newton-Schulz; O(m+n) overhead; zero artifact cost** |
-| **Muon momentum 0.97** | **-0.0004** | **NOW — change from 0.99→0.97; free, 1-line change; PRs #1514, #1523** |
-| **QK-Gain 5.25** | **~-0.001 vs 5.0** | **NOW — monotonic improvement; confirmed in merged SOTA PR #1493** |
-| **ANS Weight Compression (rANS)** | **+2.2M params capacity** | **HIGH PRIORITY — replace LZMA with per-layer histogram rANS; 1.6MB freed; PR #1510; zero quality cost** |
-| **Parameter Banking + Parallel Muon** | **+5.2% throughput (~+30 steps)** | **HIGH PRIORITY — batch 66 matrices into 4 banks, batched Newton-Schulz; PR #1523; ~-0.001 bpb indirect** |
-| **Per-Pass Loop Embeddings** | **quant gap 0.0131→0.0114** | **Add after banking — 3×512-dim vectors before each loop pass; PR #1518; ~10 lines** |
 | **Cooldown+QAT fusion (arXiv:2509.22935)** | **~-0.002** | **NOW — do LR decay jointly with QAT activation; no artifact size change; Apple ML Research** |
-| **Tap-In V6 (document-local matching)** | **unknown** | **AWAIT RULING — backward-looking doc context phrase matching; PR #1518; may be legal if causal** |
-| **Eval-Time Hash Embedding** | **unknown** | **LIKELY ILLEGAL — adapt-then-score pattern; do not implement (PR #1523)** |
 | **LaCT large-chunk TTT (arXiv:2505.23884)** | GPU util 0→70% | Target — better hardware use for post-quant TTT; code at github.com/a1600012888/LaCT |
 | **SGT sparse depth recurrence (arXiv:2603.23998)** | saves FLOP budget | Watch — reduces Triple Loop FLOP overhead 16-20% → 1-3% |
 | **Early-exit depth recurrence (arXiv:2509.23314)** | saves eval budget | Watch — skip loop iterations when step-size delta below threshold |
@@ -306,4 +300,12 @@ Every change must answer: "Does this lower val_bpb within the 16MB/10-min constr
 46. **Tap-In V6 is interesting but unruled.** abaybektursun's document-local phrase matching (PR #1518) could be legal (backward-looking, causal). Explicitly NOT the same as n-gram hash cache (no hash table, no unnormalized distribution). But await @valerio-oai ruling before implementing.
 47. **New target is ≤1.0760 bpb**, not 1.1142. CLAUDE.md has been updated. Any experiment plan using the old SOTA as target is obsolete.
 
-_Updated: 2026-04-10 (v11.2 — Merged SOTA 1.1147→1.0810 (bigbag, PR #1493); new target ≤1.0760; ANS compression + Parameter Banking HIGH priority; Muon 0.97 + QK-Gain 5.25 free wins; Eval-Time adaptation pattern illegal; Tap-In V6 await ruling)_
+### Session 10 (2026-04-11)
+48. **PR #771 is fully closed — no appeal.** @valerio-oai's ruling is explicit: train-then-score ordering on val tokens across multiple epochs = instant rejection. The 30ep AdamW TTT with cosine LR and per-layer LR adjustments is permanently void.
+49. **PR #758 (7-gram cache, 1.0465 bpb) is effectively dead.** Reviewer MatoTeziTanka flagged BOTH a TTT contradiction (code runs train-then-score by default) AND n-gram unnormalized distribution. Even if the author fixes one, both issues apply. Don't track this PR for inspiration.
+50. **PR #1545 BPB bug: extraordinary claims require BPB verification.** GDN-Hybrid claimed 1.028 bpb, but the byte-counting function has a +1 double-count for space tokens inflating total bytes ~14%. Actual score ~1.18 bpb. ALWAYS check the BPB calculation code when a score seems too good to be true.
+51. **Doc-Independent LoRA TTT (PR #1540) is a legal path.** Rank-96 LoRA adapter initialized to zero before each batch, trained score-first, discarded after each document. No state leaks across documents. This is fundamentally different from the abandoned static LoRA TTT (which was applied at training time, not eval). Evaluate after ANS compression + banking are in.
+52. **Improved Parallel Residuals (PR #1541) is bigbag's next move.** The merged SOTA author's new open PR introduces cross-lane routing with learned scalars. Monitor for merge — if it merges, the merged SOTA drops to ~1.0778 and our target tightens to ≤1.0728.
+53. **MATRIX_LR = 0.03 pairs with Muon momentum 0.97.** Both PRs #1541 and #1523 co-tune these. When reducing momentum from 0.99 → 0.97, also reduce MATRIX_LR. Check whether our base config uses 0.03 or 0.05.
+
+_Updated: 2026-04-11 (v11.5 — PR #1541 bigbag 1.07785 + PR #1540 aryanbhosale 1.0777 new open PRs; doc-independent LoRA TTT appears legal; PR #1545 BPB bug; MATRIX_LR 0.03 pairs with momentum 0.97; no merged SOTA change)_
