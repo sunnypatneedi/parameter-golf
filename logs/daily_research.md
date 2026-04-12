@@ -1,8 +1,8 @@
-# Parameter Golf Daily Research - 2026-04-11
+# Parameter Golf Daily Research - 2026-04-12
 
-## PR #771 STATUS: CLOSED (REJECTED) — FINAL
+## PR #771 STATUS: CLOSED (REJECTED)
 
-@valerio-oai: "you're first adapting your model to the eval tokens with TTT for multiple epochs, and then reporting val numbers on those tokens you've already trained on, so this is not an allowable submission." No new comments. No appeal path. Fully dead.
+Same as last session. Rejected for train-then-score TTT. No action needed.
 
 ---
 
@@ -10,14 +10,89 @@
 
 | PR | Score | Status | Notes |
 |----|-------|--------|-------|
-| #727 | 0.9674 | **CLOSED** (illegal) | Hashed n-gram cache, unnormalized |
-| #741 | 0.9850 | **CLOSED** (illegal) | Self-closed, same ruling |
-| #758 | 1.0465 | **OPEN** (flagged) | MatoTeziTanka flagged: TTT contradiction + unnormalized n-gram; effectively dead, no organizer ruling |
-| #731 | 1.0400 | **OPEN** | 5-expert Hedge Mixer, no new ruling |
+| #727 | 0.9674 | **CLOSED** (illegal) | Hashed n-gram cache — ruled out Mar 27 |
+| #741 | 0.9850 | **CLOSED** (illegal) | Same as #727 — author self-closed |
+| #758 | 1.0465 | **OPEN** | Major legality concerns flagged (hash key includes target token, TTT contradiction) |
+| #731 | 1.0400 | **OPEN** | Dense-count tables + Laplace smoothing — reviewer says "LOOKS CLEAN"; awaiting seeds 1337+2024 |
 
 ---
 
 ## Leaderboard
+
+**MERGED SOTA HAS CHANGED SIGNIFICANTLY** (was 1.1147 on 2026-04-07, now **1.0810** as of 2026-04-09):
+
+| Rank | Score | Author | PR | Technique | Date |
+|------|-------|--------|-----|-----------|------|
+| 1 | **1.0810** | bigbag | #1493 | SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25 + Legal TTT | 2026-04-09 |
+| 2 | 1.0822 | aryanbhosale | #1477 | SP8192 + Parallel Residuals + Score-First TTT | 2026-04-08 |
+| 3 | 1.0828 | dexhunter | #1413 | SP8192 + QK-Gain 5.0 + Legal Score-First TTT | 2026-04-06 |
+| 4 | 1.0835 | Robby955 | #1412 | SP8192 + Parallel Residuals + Hessian-Aware SDClip + Progressive Recurrence | 2026-04-06 |
+| 5 | 1.0856 | clarkkev | #1394 | SP8192 + GPTQ Embeddings + Depth Recurrence + SDClip | 2026-04-05 |
+| 6 | 1.0897 | aryanbhosale | #1334 | SP4096 + Depth Recurrence + Parallel Residuals + MuonEq-R | 2026-04-04 |
+
+**Best open PRs (unmerged):**
+
+| PR | Score | Author | Technique | Legal? |
+|----|-------|--------|-----------|--------|
+| #1564 | **1.01710** | joshkmartinez | GDN-Hybrid (Gated DeltaNet + SWA), NO TTT/SLOT | **YES** (safe, Track-A) |
+| #1560 | **1.07406** | dexhunter | VarLen Attention + Triton Fused MLP + Doc-TTT + Warmdown 0.75 | **YES** |
+| #1555 | **1.07636** | andrewbaggio1 | TMA Megakernel + Improved Parallel Residuals + Tap-In min_match=1 | Yes |
+| #1557 | **1.07730** | ndokutovich | SP8192 + Improved Parallel Residuals + Muon 0.97 + TTT 5ep | Yes (refs PR #1514) |
+| #1561 | **1.07830** | EthanYangTW | SP8192 + Triple Recurrence + Banking + Fused MLP + Score-First TTT | Yes |
+| #1333 | **1.07660** | aryanbhosale | Causal SLOT-16 on PR #1334 base | RISK (unruled) |
+| #1437 | **1.08091** | dexhunter | SP8192 + Parallel Residuals + 3-Layer Recurrence + Causal N-gram Tilt | **YES** |
+
+**Our PR #771**: CLOSED/REJECTED
+
+**To beat merged SOTA by ≥0.005 nats**: need val_bpb ≤ 1.0760
+
+---
+
+## What Changed (GitHub — since 2026-04-07)
+
+### 6 New Merged PRs
+All merged 2026-04-05 to 2026-04-09. The stack is now:
+- SP8192 vocab (required)
+- 3-Layer Depth Recurrence (layers 4-5, 3×, activated at 0.35× training)
+- Parallel Residuals (layers 7-10, GPT-J style)
+- QK-Gain 5.25 (up from 5.0)
+- GPTQ Embeddings + SDClip (int8 emb save ~4MB)
+- Legal Score-First TTT (WD=0.095, EMA=0.9965, MLR=0.022, warmdown=0.72)
+
+### New Techniques Observed in Open PRs
+
+**1. VarLen Attention / Per-Document Causal Masking** (PR #1560, dexhunter, 1.07406 BPB)
+- Disables cross-document attention: attention does not bleed across document boundaries
+- Enables true per-document TTT (Doc-TTT): score-first adaptation resets per document
+- LoRA chunk size=48, Muon momentum=0.97, warmdown=0.75
+- Combined with Triton Fused MLP kernel
+- **Estimated impact**: -0.009 bpb vs current merged SOTA (1.0810→1.074)
+
+**2. TMA Megakernel + Tap-In Unigram Matching** (PR #1555, andrewbaggio1, 1.07636 BPB)
+- TMA Megakernel: Triton Hopper TMA fused MLP, **+10.5% throughput = ~200 extra training steps** in 600s
+- Tap-In min_match=1: activates at 21% of positions vs 1.7% at min_match=3, large activation increase
+- "Improved Parallel Residuals" from related submission
+- **Tap-In appears to be a unigram-level n-gram hint mechanism** — needs legality verification; may be similar to N-gram Tilt
+
+**3. GDN-Hybrid Architecture** (PR #1564, joshkmartinez, 1.01710 BPB) ⚠️ WATCH CAREFULLY
+- 5 Gated DeltaNet (linear attention) layers + shared SWA components
+- SP1024 tokenizer, NO TTT, NO SLOT, NO eval-time adaptation — pure architecture
+- MuonEq-R + AdamW training, GPTQ int6, zstd-22
+- **1.01710 BPB is extraordinary** — would be best safe submission by far
+- Status: OPEN, not yet reviewed by organizers
+- Based on PR #1545 (GDN-Hybrid foundation); PR #1370 (GDN-only, 1.003 non-record) is supporting evidence
+- **Risk**: If build on SP1024, may be beatable with SP8192 GDN-Hybrid. Verify training time ≤10 min.
+
+**4. Parameter Banking** (PR #1561): Groups model parameters for efficient computation alongside recurrence. Combined with Fused MLP for 1.0783.
+
+### Technique Stack Reaching Diminishing Returns
+PR #1493 (merged SOTA, 1.0810) uses all safe legal techniques. The delta to the best open safe PR (#1560, 1.07406) is 0.007 bpb — still beatable, but the next big jump likely requires either:
+a) GDN-Hybrid architecture rewrite (PR #1564 approach)
+b) SLOT (PR #1333, risky)
+
+---
+
+## Apr 11 Update (PRs #1541, #1540, #1545 BPB Bug)
 
 - **Merged SOTA**: **1.0810** val_bpb (bigbag, PR #1493, 2026-04-09) — **NO CHANGE** since yesterday
 - **Best open legal PRs (new today)**:
@@ -66,6 +141,14 @@
 
 ## New Research Papers
 
+| Priority | Paper | ID | Technique | Δ bpb est. | Notes |
+|----------|-------|----|-----------|-----------|-------|
+| **Watch** | LaCT: Test-Time Training Done Right | arXiv:2505.23884 | Large Chunk TTT, GPU util 0→70%, O(n) scaling | ~-0.003 to -0.008 | PR #1560 "Doc-TTT" may be LaCT-style; dexhunter already implementing |
+| Watch | E2E TTT for Long Context | arXiv:2512.23675 | Meta-learned next-token prediction TTT; compresses context to weights | uncertain | Complex to adapt to competition setup |
+| Skip | Gated Delta Networks (arXiv:2412.06464) | Architecture paper for GDN — backs PR #1564 | | Already in PR #1564 |
+
+No new papers found beyond what was tracked on 2026-04-07. Competition activity is moving faster than new arXiv papers.
+
 No new breakthrough papers today beyond those already tracked.
 
 | Paper | arXiv ID | Notes |
@@ -78,11 +161,49 @@ No new breakthrough papers today beyond those already tracked.
 
 ## HuggingFace / Community Discoveries
 
-None today.
+- None found. GitHub PR activity is the primary signal.
 
 ---
 
 ## Recommended Action
+
+**Target**: val_bpb ≤ 1.0760 (beats new merged SOTA 1.0810 by ≥0.005 nats). Deadline: April 30 = **18 days remaining**.
+
+**Priority 1 — Architecture decision (decide NOW, don't delay)**
+
+Option A: **Incremental stack** (SP8192 + Triple Recurrence + Parallel Residuals + QK-Gain 5.25 + GPTQ Emb + SDClip + VarLen Attn + Doc-TTT)
+  - Build on merged PR #1493 stack + add VarLen Attention + Doc-TTT from PR #1560
+  - Expected: ~1.074–1.075 bpb (PR #1560 shows 1.07406 without N-gram Tilt)
+  - Add N-gram Tilt (PR #1437 kernel) for additional ~-0.003 bpb → ~1.071 bpb
+  - **Safe, zero rejection risk, beatable path**
+
+Option B: **GDN-Hybrid architecture** (Gated DeltaNet + SWA, PR #1564 approach)
+  - Wait for PR #1564 to receive organizer review OR replicate from PR #1564/#1545 code
+  - 1.01710 BPB would be a massive leap; upgrade to SP8192 likely adds another -0.009 bpb
+  - **High EV but requires architecture rewrite; verify 10-min budget first**
+
+Option C: **SLOT track** (Causal SLOT-16, PR #1333 approach, 1.0766 BPB)
+  - Issue #140 closed, @valerio-oai never ruled; 9 record PRs use SLOT
+  - Delta vs Option A: ~-0.003 extra bpb at cost of rejection risk
+
+**Recommendation**: Start with Option A (incremental, safe). Run 1xH100 validation of VarLen Attention + Doc-TTT addition to current PR #1493 stack. Monitor PR #1564 for organizer review — if approved, pivot to GDN-Hybrid.
+
+**Do NOT implement:**
+- Tap-In (PR #1555): Verify legality — mechanism touches token-level unigram cache; may be same pattern as N-gram Tilt or may be illegal
+- PR #1430 techniques (per-sample SLOT + order-22 n-gram hash) — pending ruling
+
+**Newly prioritized technique for next GPU run:**
+1. VarLen Attention (per-document masking) — easy add to existing stack, -0.007 bpb
+2. Doc-TTT with LoRA chunk size=48 — extends legal TTT, -0.003 bpb
+3. TMA Megakernel (Triton Hopper) — +200 steps = ~-0.002 bpb additional training
+
+---
+
+_Updated: 2026-04-12 (merged SOTA NOW 1.0810 since 2026-04-09; 6 new merged PRs; GDN-Hybrid 1.01710 open; VarLen+Doc-TTT 1.07406 open; 18 days to deadline)_
+
+---
+
+### Apr 11 Recommended Actions (context)
 
 **No change to strategy from 2026-04-10 report. Refined priorities:**
 
