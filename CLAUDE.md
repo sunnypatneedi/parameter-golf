@@ -112,28 +112,35 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — UPDATED FROM 1.1147 (was stale)
-**Best open legal PRs (Apr 12 update)**:
-  - PR #1560 (dexhunter, **1.07406**): VarLen Attention + Triton Fused MLP + Doc-TTT — appears legal (most recent best)
+**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — NO CHANGE (confirmed Apr 13)
+**Best open legal PRs (Apr 13 update)**:
+  - PR #1586 (dexhunter, **1.07493**): Per-Layer Adaptive GPTQ (MLP=12σ, Attn=13σ) + int7 Emb (15σ) + MLR=0.026 — **CLEAN, implement immediately**
+  - PR #1560 (dexhunter, **1.07406**): VarLen Attention + Triton Fused MLP + Doc-TTT — appears legal (no reviews yet)
+  - PR #1584 (codemath3000, **1.0752**): Systems-only (fused Muon + batched EMA + loader prealloc), ~20 extra steps
   - PR #1555 (andrewbaggio1, **1.07636**): TMA Megakernel + Improved Parallel Residuals + Tap-In min_match=1
   - PR #1541 (bigbag, **1.07785**): Improved Parallel Residuals (cross-lane learned scalars) + Muon 0.97 — ⚠️ hash embed flag pending
   - PR #1540 (aryanbhosale, **1.0777**): VarLen Attention + Doc-Independent LoRA TTT rank-96 + Triton TMA — appears legal
-  - PR #1564 (joshkmartinez, **1.01710**): GDN-Hybrid (Gated DeltaNet + SWA), NO TTT/SLOT — extraordinary if verified; unreviewed
+  - PR #1564 (joshkmartinez, **1.01710**): CLOSED (superseded by PR #1575 by same author)
+  - PR #1576 (joshkmartinez, **~~1.01671~~**): GDN-Hybrid — **BPB BUG confirmed by reviewer** (space token double-count from PR #1545), actual ~1.16–1.18 BPB. Do NOT track.
+  - PR #1585 (codemath3000, **1.0639**): Casefold Tokenizer — **LEGALITY DEBATED** (modifying val corpus bytes); await organizer ruling
+  - PR #1578 (mikeapedia, **1.0668**): Custom Casefold Tokenizer — **LEGALITY DEBATED**; same concern as #1585
 **Best open with SLOT**: ~1.0766 val_bpb (PR #1333, aryanbhosale, Causal SLOT-16 on PR #1334 base) — no organizer rejection
 **Best open (illegal)**: 1.0632 (PR #1517, RulinShao, Pre-Quant TTT 18ep — same ruling as #1351/#1416)
-**Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable: ~1.074–1.077 (legal). With SLOT: ~1.073–1.076. **18 days to deadline (Apr 30).**
+**Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable: ~1.068–1.075 (legal). With SLOT: ~1.065–1.073. **17 days to deadline (Apr 30).**
 
 **CRITICAL LEGALITY UPDATES**:
 - **PR #771 REJECTED (2026-03-27)** — Our AdamW TTT 30ep was train-then-score. All 30-epoch TTT results void.
-- **N-gram hash cache ILLEGAL** — PRs #727, #741 closed. PR #758 open but has major legality flags. PR #731 open (dense count tables + Laplace smoothing, reviewer says "LOOKS CLEAN", awaiting 3rd seed).
+- **N-gram hash cache ILLEGAL** — PRs #727, #741 closed. PR #758: MatoTeziTanka (Apr 12) flagged XOR hash key includes target token = same illegality as #727. Effectively dead. PR #731 open (dense count tables + Laplace smoothing, reviewer says "LOOKS CLEAN", awaiting 3rd seed).
 - **N-gram Tilt IS LEGAL (PR #1420)** — Normalized via softmax Z. **⚠️ PR #1420 has causality bug — use PR #1437's corrected implementation.**
 - **Score-first TTT IS LEGAL** — ≤3ep confirmed (PR #1413). PR #1557 cites PR #1514 as precedent for 5ep — status uncertain; use ≤3ep to be safe.
 - **Pre-quant TTT ILLEGAL (all variants)** — PR #1351, #1416, #1408, #1423. Do NOT use.
 - **SLOT δ-vector: Issue #140 CLOSED (Apr 6), NO organizer ban** — @valerio-oai NEVER commented in Issue #140. 9 record PRs use SLOT. Risk remains. Implement only if willing to accept rejection risk.
 - **ETLB UNRULED** — PR #1399/#1415; no ruling; -0.0019 bpb standalone. Await before implementing.
-- **GDN-Hybrid (PR #1564)**: No legality concerns — pure architecture, no TTT/SLOT. If organizer approves, it's the new gold standard at 1.01710.
-- **VarLen Attention + Doc-TTT (PR #1560)**: No legality flags — per-document masking is architectural, score-first TTT per-doc.
+- **GDN-Hybrid (PR #1576)**: OPEN but **BPB calculation bug confirmed (Apr 13)** — space token double-count from parent PR #1545 inflates byte count ~14%; actual ~1.16–1.18 BPB. PR #1564 CLOSED (superseded by PR #1575 by same author). Monitor PR #1575/#1576 for bug fix/organizer response before investing.
+- **VarLen Attention + Doc-TTT (PR #1560)**: No legality flags — per-document masking is architectural, score-first TTT per-doc. Still awaiting review.
 - **Tap-In unigram matching (PR #1555)**: Legality UNCONFIRMED — verify before implementing (may be similar to n-gram approaches).
+- **Casefold Tokenizer (PR #1578, #1585)**: LEGALITY DEBATED (Apr 13) — modifying validation corpus bytes via case normalization may constitute invalid benchmark manipulation. Await @valerio-oai ruling before implementing.
+- **Per-Layer Adaptive GPTQ (PR #1586)**: NO LEGALITY FLAGS — safe config change, implement immediately.
 
 **Current best-stack approach (PR #1493 base + incremental adds)**:
 1. **SP8192 vocab** — beats SP4096 by ~0.009 bpb
@@ -141,18 +148,19 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 3. **Parallel Residuals (layers 7-10)** — GPT-J style
 4. **MuonEq-R optimizer** — arXiv:2603.28254
 5. **4× MLP expansion**
-6. **GPTQ Embeddings (int8) + SDClip** — saves ~4MB artifact budget (PR #1394)
-7. **QK-Gain 5.25** — up from 5.0 (PR #1493)
-8. **WD=0.095, EMA=0.9965, warmdown=0.72** — tuned hypers from PR #1493
-9. **N-gram Tilt** — use PR #1437 corrected kernel only
-10. **Legal Score-First TTT (post-quant, ≤3ep)** — lr=0.005, all blocks
-11. **VarLen Attention (per-document causal masking)** — PR #1560, ~-0.007 bpb — **add next**
-12. **Doc-TTT (per-document score-first TTT)** — PR #1560, chunk size=48, Muon 0.97 — **add next**
-13. **TMA Megakernel (Triton TMA fused MLP)** — PR #1555, +10.5% throughput = ~200 extra steps — add after base validated
+6. **GPTQ Embeddings (int7@15σ) + SDClip** — **upgrade: int7 vs int8 saves 530KB** (PR #1586); saves ~4MB artifact budget
+7. **Per-Layer Adaptive GPTQ clip** — MLP=12σ, Attn=13σ (PR #1586) — **implement immediately, -0.013 nats**
+8. **QK-Gain 5.25** — up from 5.0 (PR #1493)
+9. **WD=0.095, EMA=0.9965, warmdown=0.72, MLR=0.026** — MLR upgraded from 0.022 (PR #1586)
+10. **N-gram Tilt** — use PR #1437 corrected kernel only
+11. **Legal Score-First TTT (post-quant, ≤3ep)** — lr=0.005, all blocks
+12. **VarLen Attention (per-document causal masking)** — PR #1560, ~-0.007 bpb — **add next**
+13. **Doc-TTT (per-document score-first TTT)** — PR #1560, chunk size=48, Muon 0.97 — **add next**
+14. **TMA Megakernel (Triton TMA fused MLP)** — PR #1555, +10.5% throughput = ~200 extra steps — add after base validated
 
-**Key reference PRs**: #1493 (merged SOTA 1.0810), #1560 (1.07406, best open safe — VarLen+Doc-TTT), #1564 (1.01710, GDN-Hybrid, extraordinary — monitor), #1555 (1.07636, TMA Megakernel+Tap-In), #1333 (1.07660, Causal SLOT-16 — risky), #1437 (1.08091, causal-fixed N-gram Tilt kernel — use this), #1413 (1.08279, SP8192+Legal TTT), #1334 (1.0897, arch reference), #1229 (0.9300, scored-position SLOT, open)
+**Key reference PRs**: #1493 (merged SOTA 1.0810), #1586 (1.07493, per-layer GPTQ — implement now), #1560 (1.07406, best open safe — VarLen+Doc-TTT), #1584 (1.0752, systems opt — fused Muon/EMA/prealloc), #1555 (1.07636, TMA Megakernel+Tap-In), #1333 (1.07660, Causal SLOT-16 — risky), #1437 (1.08091, causal-fixed N-gram Tilt kernel — use this), #1413 (1.08279, SP8192+Legal TTT), #1334 (1.0897, arch reference), #1229 (0.9300, scored-position SLOT, open)
 
-**Abandoned approaches**: Training-time static LoRA TTT (hurts), product quantization (SWA-incompatible), custom Triton kernels (poor EV — REVERTED: PR #1420 shows +10% via Triton TMA, revisit after base works), int4 without QAT (quality-destructive), eval stride=32 (time budget), AdamW TTT 30ep (illegal), n-gram hash cache (illegal), pre-quant TTT any form (illegal), Eval-Time Hash Embedding trained at inference (suspect illegal — same adapt-then-score pattern), Tap-In V6 document-local matching (await ruling).
+**Abandoned approaches**: Training-time static LoRA TTT (hurts), product quantization (SWA-incompatible), custom Triton kernels (poor EV — REVERTED: PR #1420 shows +10% via Triton TMA, revisit after base works), int4 without QAT (quality-destructive), eval stride=32 (time budget), AdamW TTT 30ep (illegal), n-gram hash cache (illegal), pre-quant TTT any form (illegal), Eval-Time Hash Embedding trained at inference (suspect illegal — same adapt-then-score pattern), Tap-In V6 document-local matching (await ruling), GDN-Hybrid #1576 (BPB bug — actual ~1.17 not 1.01671).
 **NOTE**: Doc-Independent LoRA TTT (PR #1540, rank-96, resets per batch, score-first) is categorically DIFFERENT from abandoned LoRA TTT and appears legal — consider adopting.
 
 ---
@@ -170,7 +178,10 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | **VarLen Attention + Doc-TTT** | **~-0.007** | **LEGAL — PR #1560 (dexhunter, 1.07406 BPB); per-document causal masking + score-first TTT per-doc; LoRA chunk=48** |
 | **TMA Megakernel (Triton Hopper fused MLP)** | **+200 steps (~-0.002)** | **LEGAL — PR #1555; +10.5% throughput; add after base validated** |
 | **Tap-In Unigram Matching (min_match=1)** | **~-0.009** | **LEGALITY UNCONFIRMED — PR #1555; 21% activation rate; verify before implementing** |
-| **GDN-Hybrid Architecture (Gated DeltaNet + SWA)** | **~-0.064 vs merged SOTA** | **LEGAL (safe, no TTT) — PR #1564 (joshkmartinez, 1.01710 BPB, OPEN, unreviewed); 5 GDN layers + SWA; SP1024 base; extraordinary if verified** |
+| **Per-Layer Adaptive GPTQ (MLP=12σ, Attn=13σ) + int7 Emb** | **-0.013 nats (-0.0046 bpb)** | **LEGAL — PR #1586 (dexhunter, 1.07493 BPB); MLP tighter clip, Attn looser, int7 emb saves 530KB; MLR=0.026; IMPLEMENT IMMEDIATELY** |
+| **Systems Opt (fused Muon + batched EMA + loader prealloc)** | **~+20 steps (~-0.001 bpb)** | **LEGAL — PR #1584 (codemath3000, 1.0752); pure kernel/memory efficiency; no ML changes** |
+| **Casefold Tokenizer (NFKC + lowercase BPE retrain)** | **~-0.017 bpb** | **LEGALITY DEBATED — PR #1578 (1.0668), #1585 (1.0639); modifying val corpus byte count raises comparability concern; await @valerio-oai ruling** |
+| **GDN-Hybrid Architecture (Gated DeltaNet + SWA)** | **~~-0.064 vs merged SOTA~~ → BPB BUG** | **BPB CALCULATION BUG (Apr 13 confirmed) — PR #1576 space-token double-count; actual ~1.16–1.18, not 1.01671. Monitor for fix before investing.** |
 | **Triple Loop (3× depth recurrence)** | **~-0.009 vs 2×** | **IN MERGED SOTA — PR #1493 (1.0810); 17 virtual layers; activate at 0.35× training** |
 | **SP8192 vocab** | **~-0.009 vs SP4096** | **IN MERGED SOTA — PR #1493** |
 | **GPTQ Embeddings (int8) + SDClip** | **~-0.003 + artifact** | **IN MERGED SOTA — PR #1394; saves ~4MB artifact budget** |
@@ -325,3 +336,13 @@ _Updated: 2026-04-11 (v11.5 — PR #1541 bigbag 1.07785 + PR #1540 aryanbhosale 
 61. **18 days remain. Prioritize safe incremental improvements over risky architecture rewrites.** VarLen+Doc-TTT (PR #1560 approach) is the lowest-risk path to beating the target. File that first, then consider GDN-Hybrid rewrite if approved.
 
 _Updated: 2026-04-12 (v12.1 — merged SOTA 1.0810 (PR #1493, Apr 9); 6 new merges; GDN-Hybrid 1.01710 open; VarLen+Doc-TTT 1.07406 open; target ≤1.0760; 18 days remaining)_
+### Session 12 (2026-04-13)
+62. **PR #758 n-gram is effectively dead.** MatoTeziTanka (Apr 12) flagged the 7-gram cache XOR hash key includes target token — same normalization/leakage violation as PRs #727/#741. The reviewer explicitly states the neural base is ~1.10–1.15 without the cache. Stop tracking #758.
+63. **GDN-Hybrid BPB bug confirmed (PR #1576).** Space token double-count inherited from PR #1545 inflates byte denominator ~14%, making 1.01671 actually ~1.16–1.18 BPB. No organizer response yet. PR #1564 was voluntarily closed (superseded by PR #1575). Extraordinary GDN-Hybrid claims are FALSE until the author provides corrected byte-counting code.
+64. **Per-Layer Adaptive GPTQ (PR #1586) is the highest-EV immediate action.** dexhunter's PR achieves 1.07493 (3-seed mean, std 0.00078) by differentiating GPTQ clip_sigmas: MLP=12.0, Attn=13.0, Emb int7@15.0σ. Saves 530KB vs int8 Emb, MLR=0.026. -0.01266 nats vs merged SOTA (>2× the 0.005 threshold). No legality concerns. This is a config-level change that should be in our submission.
+65. **Casefold Tokenizer legality is actively contested.** PR #1578 (1.0668) and #1585 (1.0639) apply NFKC+lowercase to the validation corpus, reducing what bytes need to be predicted. Three community members debated it; no organizer ruling as of Apr 13. The improvement is real (~-0.017 bpb) but the legality is uncertain — do NOT implement until @valerio-oai rules.
+66. **Systems optimizations (PR #1584) give ~20 extra steps for free.** Fused Muon kernel + batched EMA + loader prealloc = same training budget with ~20 extra gradient steps. Pure engineering, no model changes. Worth including before next submission.
+67. **arXiv:2604.06169 In-Place TTT (Apr 7) is worth reading.** Replaces TTT's generic reconstruction loss with a next-token-prediction-aligned objective, enabling chunk-wise updates compatible with score-first paradigm. Could improve legal TTT quality. Read before next TTT implementation.
+68. **Merged SOTA held at 1.0810 for 4 days (Apr 9–13).** This is the longest gap since competition acceleration began. Either the field is catching up, or a wave of PRs is being prepared. Expect merges in next 2–3 days given the 8 open PRs in range.
+
+_Updated: 2026-04-13 (v12.2 — merged SOTA 1.0810 confirmed; PR #758 dead; GDN-Hybrid BPB bug confirmed; PR #1586 per-layer GPTQ highest-EV immediate action; Casefold Tokenizer legality debated; 17 days remaining)_

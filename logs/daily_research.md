@@ -1,3 +1,138 @@
+# Parameter Golf Daily Research - 2026-04-13
+
+## PR #771 STATUS: CLOSED (REJECTED) — CONFIRMED
+
+@valerio-oai ruling stands: "adapting model to eval tokens with TTT for multiple epochs, then reporting val numbers on those same tokens is not an allowable submission." No appeal path.
+
+---
+
+## N-GRAM PR STATUS
+
+| PR | Score | Status | Notes |
+|----|-------|--------|-------|
+| #727 | 0.9674 | **CLOSED** (illegal) | Hashed n-gram cache — ruled out Mar 27 |
+| #741 | 0.9850 | **CLOSED** (illegal) | Author self-closed, same illegality |
+| #758 | 1.0465 | **OPEN** ⚠️ effectively dead | MatoTeziTanka (Apr 12): XOR hash key includes target token → same normalization violation as #727. "Neural base model ~1.10–1.15 without cache." Do NOT track further. |
+| #731 | 1.0400 | **OPEN** | Dense-count tables + Laplace smoothing, score-first per chunk; reviewer "LOOKS CLEAN"; awaiting seeds 1337+2024 |
+
+---
+
+## Leaderboard
+
+**No change. Merged SOTA: 1.0810 (bigbag, PR #1493, 2026-04-09)**
+
+Upstream `git log --oneline upstream/main -10` shows most recent merge is PR #1511 (leaderboard update, Apr leaderboard README). No new records merged since Apr 9.
+
+**Best open PRs (updated today):**
+
+| PR | Score | Author | Technique | Legal? |
+|----|-------|--------|-----------|--------|
+| #1576 | ~~1.01671~~ → ~1.16–1.18 | joshkmartinez | GDN-Hybrid + SWA | **BPB BUG** — reviewer confirmed double-count of space bytes from parent PR #1545; actual score ~1.16–1.18. Do NOT implement. |
+| #1585 | **1.0639** | codemath3000 | Casefold Tokenizer + Parallel Residuals + Systems Opt | **LEGALITY DEBATED** — modifying val corpus (NFKC + lowercase); await organizer ruling |
+| #1578 | **1.0668** | mikeapedia | Custom Casefold Tokenizer (BPE retrained on casefolded text) | **LEGALITY DEBATED** — same issue as #1585 |
+| #1586 | **1.07493** | dexhunter | Per-Layer Adaptive GPTQ + int7 Emb + MLR 0.026 | **YES — no flags** |
+| #1560 | **1.07406** | dexhunter | VarLen Attention + Doc-TTT | **YES** |
+| #1584 | **1.0752** | codemath3000 | Improved Parallel Residuals + Systems Opt (fused Muon, batched EMA, loader prealloc) | **YES** |
+| #1540 | **1.0777** | aryanbhosale | VarLen Attn + Doc-Independent LoRA TTT rank-96 | **YES** |
+| #1541 | **1.07785** | bigbag | Improved Parallel Residuals + Muon 0.97 | ⚠️ hash embed flag pending |
+| #1555 | **1.07636** | andrewbaggio1 | TMA Megakernel + Improved Parallel Residuals + Tap-In | Tap-In legality unconfirmed |
+| #1437 | **1.08091** | dexhunter | N-gram Tilt (causality-fixed) | **YES** |
+
+**Target**: ≤1.0760 bpb (beats 1.0810 by ≥0.005 nats). **17 days remaining (April 30 deadline).**
+
+---
+
+## What Changed (GitHub — Apr 12–13, 2026)
+
+### No New Merged PRs
+Last merge was PR #1511 (Apr leaderboard README, no new record). SOTA unchanged.
+
+### New Open PRs (filed Apr 12–13)
+
+**PR #1586** (dexhunter, 1.07493) — **HIGH PRIORITY: implement this**
+- Per-layer GPTQ clip sigmas: MLP=12.0σ, Attention=13.0σ (vs uniform previously)
+- int7 Embeddings at 15.0σ: saves ~530 KB vs int8
+- MLR (matrix learning rate) = 0.026 (vs default 0.022), tuned via sweeps
+- Artifact ~15.93 MB; -0.01266 nats vs merged SOTA (>2× the 0.005 threshold)
+- No legality concerns raised
+
+**PR #1584** (codemath3000, 1.0752) — Systems-only, **~20 extra steps free**
+- Fused Muon kernel: Muon optimizer steps computed with kernel fusion
+- Batched EMA: exponential moving average operations batched
+- Loader prealloc: data loader memory pre-allocated
+- No ML changes; claim: "0.005 nats waived for systems-only optimization"
+- Builds on PR #1529 (dual-lane parallel residuals)
+
+**PR #1585** (codemath3000, 1.0639) — Casefold Tokenizer — ⚠️ AWAIT RULING
+- NFKC normalization + lowercasing applied to training corpus AND validation corpus
+- Custom SentencePiece BPE retrained on normalized text
+- Achieves ~10% better byte compression → lower BPB mechanically
+- **Key concern**: modifying what bytes are counted in the validation set denominator. 3 participants debated; no organizer ruling yet.
+- CUTLASS EVT build required (extra dependency)
+
+**PR #1578** (mikeapedia, 1.0668) — Custom Casefold Tokenizer — ⚠️ AWAIT RULING
+- Eliminates ~21.1% of SP8192 vocab (case-duplicate tokens)
+- Refills 374 freed slots with optimized subwords
+- Same legality debate as #1585
+
+**PR #1576** (joshkmartinez, 1.01671) — GDN-Hybrid — ⚠️ BPB BUG
+- Inherits BPB calculation bug from parent PR #1545
+- Space token double-count inflates denominator byte count ~14%
+- Reviewer estimate: actual ~1.16–1.18 BPB, not 1.01671
+- No organizer response yet; do NOT build on this
+
+**PR #1564** — CLOSED (voluntarily by author, superseded by PR #1575)
+
+---
+
+## New Research Papers
+
+| Priority | Paper | arXiv ID | Date | Technique | Applicability |
+|----------|-------|----------|------|-----------|--------------|
+| **Watch** | In-Place Test-Time Training | 2604.06169 | 2026-04-07 | Replaces generic TTT reconstruction loss with NTP-aligned objective + chunk-wise updates. Score-first compatible (NTP IS the evaluation criterion). Scales to 128k context on 4B model. | Could improve legal post-quant score-first TTT quality; implementation adds NTP loss alignment to TTT LoRA updates. Estimate -0.001 to -0.002 bpb vs current TTT. |
+| Already tracked | LaCT (Test-Time Training Done Right) | 2505.23884 | 2025-05 | Large-chunk TTT — PR #1560 Doc-TTT appears to be LaCT-style | In plan |
+| Low | N-gram Is Back (residual learning) | 2210.14431 | 2022 | Neural model fits residual of n-gram distribution | Interesting but complex; n-gram Tilt (PR #1437) is simpler path already in plan |
+| Low | Lightweight Adaptive Mixture of Neural+N-gram LMs | 1804.07705 | 2018 | Small network predicts mixture weight per timestep | Superseded by N-gram Tilt approach |
+
+No breakthrough papers found beyond what was tracked Apr 12. arXiv:2604.06169 is the one new relevant paper.
+
+---
+
+## HuggingFace / Community Discoveries
+
+- **codemath3000** filed 3 PRs in one day (#1583, #1584, #1585) — a systems-optimization sweep. The CUTLASS EVT dependency in #1585 is a potential build concern for reproducibility.
+- **dexhunter** remains the most active legal submitter: #1560 (1.07406), #1586 (1.07493). Both clean.
+- Casefold tokenizer debate is active (3+ community members discussing legality). Organizer ruling expected soon.
+
+---
+
+## Recommended Action
+
+**Priority 1 — Implement immediately (before next GPU run):**
+- **Per-Layer Adaptive GPTQ from PR #1586**: Change GPTQ clip_sigmas to MLP=12.0, Attn=13.0, Emb=int7@15.0. Saves 530KB (more parameter budget). Zero legality risk. Expected: -0.0050 to -0.013 nats vs current stack. This is a config-level change, not an architecture change.
+- **MLR = 0.026**: Change MATRIX_LR from 0.022 → 0.026 (co-tuned with per-layer GPTQ in PR #1586).
+
+**Priority 2 — Architecture (next GPU run):**
+- VarLen Attention + Doc-TTT (PR #1560 approach): -0.007 bpb vs merged SOTA
+- With per-layer GPTQ: combined target ~1.068–1.072 bpb
+
+**Priority 3 — Monitor:**
+- PR #731 (n-gram Hedge Mixer, 1.0400): If third seed confirms and it merges, a clean legal n-gram mixer is available
+- PR #1585 casefold tokenizer: If organizer rules it legal, -0.017 bpb for essentially free
+- arXiv:2604.06169 (In-Place TTT): Read paper; may improve TTT quality with same legal budget
+- PR #1541 (bigbag, 1.07785): Hash embed flag — if cleared, this is the next likely merge that tightens our target to ≤1.0728
+
+**Do NOT implement:**
+- Casefold Tokenizer (#1578, #1585): Await organizer ruling on val corpus modification
+- GDN-Hybrid (#1576): BPB bug not resolved; actual performance likely ~1.17
+- PR #758 n-gram: Flagged dead by MatoTeziTanka Apr 12; same illegality as #727
+
+---
+
+_Updated: 2026-04-13 (merged SOTA unchanged 1.0810; PR #758 effectively dead via Apr 12 flag; PR #1576 GDN-Hybrid has BPB bug; PR #1586 per-layer GPTQ is highest-EV safe action; 17 days remaining)_
+
+---
+
 # Parameter Golf Daily Research - 2026-04-12
 
 ## PR #771 STATUS: CLOSED (REJECTED)
