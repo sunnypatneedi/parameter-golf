@@ -1,3 +1,98 @@
+# Parameter Golf Daily Research - 2026-04-14
+
+## PR #771 STATUS: CLOSED (REJECTED) — no change
+
+---
+
+## N-GRAM PR STATUS
+
+| PR | Score | Status | Notes |
+|----|-------|--------|-------|
+| #727 | 0.9674 | **CLOSED** (illegal) | Hashed n-gram cache |
+| #741 | 0.9850 | **CLOSED** (illegal) | Same ruling |
+| #758 | 1.0465 | **OPEN** (dead) | Flagged Apr 12 by MatoTeziTanka (XOR hash includes target token). No change. |
+| #731 | 1.0400 | **OPEN** | Dense-count tables + Laplace smoothing. Community "LOOKS CLEAN." Single seed. Awaiting seeds 1337+2024. |
+
+---
+
+## Leaderboard
+
+**No new records. Merged SOTA: 1.0810 (bigbag, PR #1493) — Day 5 unchanged.**
+
+Best open PRs (from today's GitHub scan):
+
+| PR | Score | Author | Technique | Legal? |
+|----|-------|--------|-----------|--------|
+| #1585 | **1.0639** | codemath3000 | Casefold Tokenizer + Parallel Residuals | **AWAIT RULING** |
+| #1610 | **1.0728** | romeerp | VarLenAttn + PhasingTTT | **YES (new today)** |
+| #1586 | **1.07493** | dexhunter | Per-Layer Adaptive GPTQ + int7 Emb | **YES** |
+| #1560 | **1.07406** | dexhunter | VarLen Attention + Doc-TTT | **YES** |
+| #1541 | **1.07785** | bigbag | Improved Parallel Residuals + Muon 0.97 | Hash embed flag pending |
+
+**Target**: ≤1.0760 bpb. **16 days remaining (April 30 deadline).**
+
+---
+
+## What Changed (GitHub — Apr 13–14, 2026)
+
+### No new merged records (Day 5 plateau)
+
+Upstream `git log upstream/main -3` shows only PR #1511 (April leaderboard README update). Nothing new merged since Apr 9.
+
+### New Open PR
+
+**PR #1610** (romeerp, 1.0728, VarLenAttn + PhasingTTT) — open, no organizer comments
+- Combines Variable-Length Attention with a two-phase global SGD approach
+- Phase 1: LoRA-based TTT on 2000 already-scored documents
+- Pause: global SGD on those scored documents (not new tokens)
+- Phase 2: resume evaluation on remaining documents
+- Score-first: tokens are scored before any adaptation runs on them
+- Delta vs PR #1530 base: **-0.00055760 bpb** — very low EV
+- All 3 seeds within 600s eval budget and under 16MB
+- **Assessment**: Legal but minimal gain. Do not prioritize over PR #1586.
+
+### Other new PRs (low interest)
+- **PR #1619** (SP8192 + AdamW TTT): likely illegal — AdamW TTT same pattern as rejected PR #771
+- **PR #1616** (QK-Gain 5.5 + deeper recurrence): open, no score listed; testing QK-Gain above 5.25
+- **PR #1620** (1.66 BPB, squeeze architecture): non-competitive baseline submission
+
+---
+
+## New Research Papers
+
+| Priority | Paper | arXiv ID | Date | Key technique | Competition relevance |
+|----------|-------|----------|------|---------------|----------------------|
+| **Read now** | PRISM: Parallel Residual Iterative Sequence Model | 2602.10796 | Feb 2026 | Iterative non-linear correction within parallelizable linear recurrence; 174× throughput vs serial | Our depth recurrence + parallel residuals (PR #1493) is the same motivation. Read to see if PRISM's correction phase improves recurrence quality without extra params. |
+| Watch | Ouroboros: Dynamic Weight Gen for Recursive Transformers | 2604.02051 | Apr 2026 | Input-conditioned LoRA modulation (hypernetwork) per recurrence step | Could make 3× recurrence loops more expressive; adds hypernetwork params (16MB budget risk). Watch for any competition PR adopting this. |
+| Already tracked | In-Place TTT | 2604.06169 | Apr 7, 2026 | NTP-aligned TTT objective | Read before next TTT implementation |
+| Already tracked | LaCT | 2505.23884 | May 2025 | Large-chunk TTT | In plan (PR #1560 approach) |
+
+---
+
+## HuggingFace / Community
+
+No new blog posts or model releases relevant to competition today.
+
+---
+
+## Recommended Action
+
+**No strategy change from Apr 13. Priorities unchanged:**
+
+1. **Implement PR #1586 (per-layer GPTQ + int7 emb) in next GPU run.** -0.01266 bpb, 3-seed confirmed, zero legality risk. Change: `clip_sigmas MLP=12.0, Attn=13.0, Emb(int7)=15.0; MATRIX_LR=0.026`.
+2. **Add VarLen Attention + Doc-TTT (PR #1560 approach)** as the architecture change in the same run. Combined expected: ~1.062–1.068 bpb.
+3. **Read PRISM (arXiv:2602.10796)** before next recurrence architecture decision.
+4. **Watch PR #1541 (bigbag, 1.07785)** — if hash embed flag clears and it merges, target tightens to ≤1.0728.
+5. **Watch PR #1610 PhasingTTT** — legal but low EV (-0.0006 bpb); only adopt if everything else is in.
+
+**Do NOT implement** yet: Casefold (#1585, await ruling), PR #1619 (likely illegal AdamW TTT), PR #758 (dead).
+
+---
+
+_Updated: 2026-04-14 (merged SOTA 1.0810 Day 5 no change; PR #1610 PhasingTTT new legal open PR (low EV); PRISM arXiv:2602.10796 relevant paper; Ouroboros arXiv:2604.02051 watch; 16 days remaining)_
+
+---
+
 # Parameter Golf Daily Research - 2026-04-13
 
 ## PR #771 STATUS: CLOSED (REJECTED) — CONFIRMED
