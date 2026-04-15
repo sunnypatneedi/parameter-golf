@@ -203,7 +203,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | **Cooldown+QAT fusion (arXiv:2509.22935)** | **~-0.002** | **WATCH — LR decay jointly with QAT; no artifact size change** |
 | **LaCT large-chunk TTT (arXiv:2505.23884)** | GPU util 0→70% | WATCH — PR #1560 Doc-TTT may be LaCT-style; dexhunter already implementing |
 | **SGT sparse depth recurrence (arXiv:2603.23998)** | saves FLOP budget | Watch — reduces Triple Loop FLOP overhead |
-| Newton-Muon (arXiv:2604.01472) | ~+4-6% steps | WATCH — Apr 2026, untested |
+| **Newton-Muon (arXiv:2604.01472)** | **~+6% steps (~+288 steps at our scale, ~-0.001 bpb)** | **WATCH — Apr 2, 2026; right-preconditioning via input second moment; 6% fewer iterations + 4% wall-clock vs Muon on nanoGPT speedrun; drop-in Muon swap. Verify additive with MuonEq-R before GPU spend.** |
 | MUD/MomentUm Decorrelation (arXiv:2603.17970) | +20-50% throughput | WATCH — triangular Cholesky whitening; 1.3–2.6× tokens/sec vs Muon |
 | Mousse (arXiv:2603.09697) | ~-0.002 to -0.003 | WATCH — Kronecker-factored preconditioning for Muon; ~12% fewer steps |
 | Infini-gram interpolation (arXiv:2401.17377) | large but legal unclear | WATCH — suffix array ∞-gram, normalized |
@@ -355,3 +355,11 @@ _Updated: 2026-04-13 (v12.2 — merged SOTA 1.0810 confirmed; PR #758 dead; GDN-
 73. **16 days remain. Implement PR #1586 (per-layer GPTQ + int7 emb) before any other change.** -0.01266 bpb, verified 3-seed, zero legality risk. This is the single fastest path to beating the merged SOTA. Do not wait for Casefold or Hedge Mixer rulings before running the GPU experiment.
 
 _Updated: 2026-04-14 (v12.3 — merged SOTA 1.0810 Day 5 no change; PR #1610 PhasingTTT legal but low EV; PRISM arXiv:2602.10796 relevant to recurrence design; Ouroboros arXiv:2604.02051 watch; 16 days remaining)_
+
+### Session 14 (2026-04-15)
+74. **Merged SOTA 1.0810 enters Day 6 plateau — longest since competition acceleration.** `git log upstream/main` confirms last commit was Apr 9 15:22 PDT. No new records or merges detected via git or web search. Eight open PRs remain in range. Expect imminent merge wave.
+75. **Newton-Muon (arXiv:2604.01472, Apr 2) is a drop-in Muon swap worth testing.** Right-preconditioning by input second moment gives 6% fewer iterations + 4% wall-clock vs standard Muon on nanoGPT speedrun benchmark. At our ~4800-step budget, 6% ≈ +288 effective steps ≈ small free bpb gain. NOT currently in technique table — added today. Verify it is additive with MuonEq-R (our current optimizer) before spending GPU; they may be redundant.
+76. **In-Place TTT (arXiv:2604.06169) is NOT the same as Session 3's failed attempt.** Session 3 used reconstruction loss on MLP output projections and saw loss blow up (2.63+). The Apr 7 paper uses an NTP-aligned loss, which is theoretically grounded for autoregressive LM. The "HARMFUL" lesson (#13) should not prevent trying In-Place TTT with NTP-aligned loss on a modern base. Low priority now; revisit after PR #1586 + VarLen+Doc-TTT are confirmed.
+77. **No new open PRs filed Apr 14–15 with competitive scores.** Web search and git log show nothing new. PR #1619 (likely illegal AdamW TTT) and PR #1616 (QK-Gain 5.5) are low-interest. The competitive field is in a holding pattern — same 8 PRs as yesterday.
+
+_Updated: 2026-04-15 (v12.4 — merged SOTA 1.0810 Day 6 no change; Newton-Muon arXiv:2604.01472 added (+6% effective steps, verify vs MuonEq-R); In-Place TTT (2604.06169) NTP-aligned loss distinguishes it from Session 3 failure; 15 days remaining)_

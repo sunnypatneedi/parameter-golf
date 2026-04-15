@@ -1,3 +1,94 @@
+# Parameter Golf Daily Research - 2026-04-15
+
+## PR #771 STATUS: CLOSED (REJECTED) — no change
+
+---
+
+## N-GRAM PR STATUS
+
+| PR | Score | Status | Notes |
+|----|-------|--------|-------|
+| #727 | 0.9674 | **CLOSED** (illegal) | Hashed n-gram cache — no change |
+| #741 | 0.9850 | **CLOSED** (illegal) | No change |
+| #758 | 1.0465 | **OPEN** (dead) | No new activity. XOR hash includes target token; effectively dead. |
+| #731 | 1.0400 | **OPEN** | Dense-count tables + Laplace smoothing. Awaiting seeds 1337+2024. No update. |
+
+---
+
+## Leaderboard
+
+**Merged SOTA: 1.0810 (bigbag, PR #1493) — DAY 6 UNCHANGED.**
+
+Last upstream commit: `75700cb 2026-04-09 15:22 PDT` (PR #1511, leaderboard README). Zero new records since Apr 9.
+
+This is the longest plateau since the Apr 5–9 acceleration wave (4 records in 4 days). Either the field is stuck, or a wave of PRs is being prepared for end-of-month push. **15 days to deadline.**
+
+Best open PRs (no changes from Apr 14):
+
+| PR | Score | Author | Technique | Legal? |
+|----|-------|--------|-----------|--------|
+| #1585 | **1.0639** | codemath3000 | Casefold Tokenizer + Parallel Residuals + Systems Opt | **AWAIT RULING** |
+| #1578 | **1.0668** | mikeapedia | Casefold BPE retrain | **AWAIT RULING** |
+| #1560 | **1.07406** | dexhunter | VarLen Attention + Doc-TTT | **YES** |
+| #1586 | **1.07493** | dexhunter | Per-Layer Adaptive GPTQ + int7 Emb + MLR=0.026 | **YES** |
+| #1584 | **1.0752** | codemath3000 | Systems Opt (fused Muon + batched EMA + loader prealloc) | **YES** |
+| #1555 | **1.07636** | andrewbaggio1 | TMA Megakernel + Tap-In (min_match=1) | Tap-In unconfirmed |
+| #1541 | **1.07785** | bigbag | Improved Parallel Residuals + Muon 0.97 | ⚠️ hash embed flag |
+| #1540 | **1.0777** | aryanbhosale | VarLen + Doc-Independent LoRA TTT rank-96 | **YES** |
+| #1610 | **1.0728** | romeerp | VarLenAttn + PhasingTTT | **YES** (low EV) |
+
+**Target**: ≤1.0760 bpb. 15 days remaining.
+
+---
+
+## What Changed (GitHub — Apr 14–15, 2026)
+
+**No new merges. No new high-priority PRs detected via web search.** Day 6 plateau continues.
+
+Checked via: `git log upstream/main -5` (Apr 9 is most recent) + web search for new submissions.
+
+### PRs to watch for movement:
+- PR #1586 (per-layer GPTQ) — highest probability of merging next given 3-seed confirmation + zero flags
+- PR #1541 (bigbag improved residuals) — hash embed flag must clear first; bigbag is the merged-SOTA author so organizers watch his PRs closely
+- Casefold PRs (#1585, #1578) — ruling pending from @valerio-oai; if ruled legal, would reset our target to ≤1.0589
+
+---
+
+## New Research Papers
+
+| Priority | Paper | arXiv ID | Date | Key Technique | Competition Relevance |
+|----------|-------|----------|------|---------------|----------------------|
+| **Add to plan** | **Newton-Muon Optimizer** | **2604.01472** | Apr 2, 2026 | Right-preconditioning by input second moment; surrogate quadratic model. Reaches target val loss in **6% fewer steps**, 4% less wall-clock vs standard Muon | **NOT YET IN PLAN.** Drop-in Muon replacement. At our budget (~4800 steps), 6% ≈ +288 extra effective steps. Small but free. Compatible with MuonEq-R base; verify they don't conflict before adding. |
+| Already tracked | In-Place TTT | 2604.06169 | Apr 7, 2026 | MLP final-projection fast weights + NTP-aligned loss + chunk-wise updates | Score-first compatible. Key distinction from Session 3: uses NTP loss not reconstruction loss. Lesson #13 ("HARMFUL") used reconstruction loss on a different model. Could retry with NTP-aligned loss before dismissing permanently. Low priority until base stack is confirmed. |
+| Already tracked | PRISM | 2602.10796 | Feb 2026 | Parallelizable iterative residual correction; 174× vs serial | Architectural inspiration for Triple Loop improvement — read before next recurrence change |
+| Already tracked | Ouroboros | 2604.02051 | Apr 2, 2026 | Hypernetwork-generated per-step LoRA modulation for recursive blocks | 9.2M extra params overhead; likely too expensive for 16MB budget. Watch for competition PR. |
+| Already tracked | Mousse | 2603.09697 | Mar 2026 | Kronecker-factored preconditioning for Muon; ~12% fewer steps | Higher EV than Newton-Muon but more overhead |
+
+---
+
+## HuggingFace / Community
+
+No new relevant blog posts or model releases. Web search for "parameter-golf 1.06 OR 1.05" returned only PR list page — no new scores below 1.06 surfacing publicly.
+
+---
+
+## Recommended Action
+
+**No strategy change from Apr 14. One addition: add Newton-Muon to technique tracking.**
+
+Priority order:
+1. **Next GPU run: Implement PR #1586** (per-layer GPTQ + int7 emb + MLR=0.026). Expected: ~1.068–1.070 bpb. Config changes only: `clip_sigmas={'mlp': 12.0, 'attn': 13.0, 'emb': 15.0}, MATRIX_LR=0.026, emb_bits=7`.
+2. **Same run: Add VarLen Attention + Doc-TTT (PR #1560 approach).** Combined expected: ~1.062–1.068 bpb.
+3. **Watch PR #1541** — if hash embed flag clears and it merges, new target becomes ≤1.0728.
+4. **Newton-Muon (arXiv:2604.01472)**: Evaluate as a Muon swap in a follow-up run. +288 effective steps at our scale. Check if MuonEq-R and Newton-Muon are additive or redundant before GPU spend.
+5. **Do NOT implement**: Casefold (#1585, await ruling), PR #758 (dead), any AdamW TTT.
+
+---
+
+_Updated: 2026-04-15 (merged SOTA 1.0810 Day 6 no change; no new PRs; Newton-Muon arXiv:2604.01472 added as new tracked technique (+6% effective steps); 15 days remaining)_
+
+---
+
 # Parameter Golf Daily Research - 2026-04-14
 
 ## PR #771 STATUS: CLOSED (REJECTED) — no change
