@@ -112,8 +112,10 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — NO CHANGE (confirmed Apr 13)
-**Best open legal PRs (Apr 13 update)**:
+**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — NO CHANGE (confirmed Apr 16, Day 7 plateau)
+**Best open legal PRs (Apr 16 update)**:
+  - PR #1670 (dexhunter, **1.05970**): Casefold V4 + Multi-Phase Global SGD TTT — **AWAIT CASEFOLD RULING (Issue #1604)**
+  - PR #1667 (MarioPaerle, **1.07139**): SmearGate + Attention Output Gate (1,056 params, 12×8×11 heads) + Legal TTT — **CLEAN, no reviews, stack on #1586**
   - PR #1586 (dexhunter, **1.07493**): Per-Layer Adaptive GPTQ (MLP=12σ, Attn=13σ) + int7 Emb (15σ) + MLR=0.026 — **CLEAN, implement immediately**
   - PR #1560 (dexhunter, **1.07406**): VarLen Attention + Triton Fused MLP + Doc-TTT — appears legal (no reviews yet)
   - PR #1584 (codemath3000, **1.0752**): Systems-only (fused Muon + batched EMA + loader prealloc), ~20 extra steps
@@ -124,9 +126,10 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
   - PR #1576 (joshkmartinez, **~~1.01671~~**): GDN-Hybrid — **BPB BUG confirmed by reviewer** (space token double-count from PR #1545), actual ~1.16–1.18 BPB. Do NOT track.
   - PR #1585 (codemath3000, **1.0639**): Casefold Tokenizer — **LEGALITY DEBATED** (modifying val corpus bytes); await organizer ruling
   - PR #1578 (mikeapedia, **1.0668**): Custom Casefold Tokenizer — **LEGALITY DEBATED**; same concern as #1585
-**Best open with SLOT**: ~1.0766 val_bpb (PR #1333, aryanbhosale, Causal SLOT-16 on PR #1334 base) — no organizer rejection
+  - PR #1647 (powerpratik, **1.0616**): SLOT-4 + TTT + 3-Layer Recurrence + Parallel Residuals — ⚠️ standard SLOT, no reviews
+**Best open with SLOT**: ~1.0616 val_bpb (PR #1647, powerpratik, SLOT-4) — no reviews yet
 **Best open (illegal)**: 1.0632 (PR #1517, RulinShao, Pre-Quant TTT 18ep — same ruling as #1351/#1416)
-**Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable: ~1.068–1.075 (legal). With SLOT: ~1.065–1.073. **17 days to deadline (Apr 30).**
+**Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable: ~1.068–1.072 (legal stack #1586+#1667+#1560). With casefold if ruled legal: ~1.059. **14 days to deadline (Apr 30).**
 
 **CRITICAL LEGALITY UPDATES**:
 - **PR #771 REJECTED (2026-03-27)** — Our AdamW TTT 30ep was train-then-score. All 30-epoch TTT results void.
@@ -156,9 +159,10 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 11. **Legal Score-First TTT (post-quant, ≤3ep)** — lr=0.005, all blocks
 12. **VarLen Attention (per-document causal masking)** — PR #1560, ~-0.007 bpb — **add next**
 13. **Doc-TTT (per-document score-first TTT)** — PR #1560, chunk size=48, Muon 0.97 — **add next**
-14. **TMA Megakernel (Triton TMA fused MLP)** — PR #1555, +10.5% throughput = ~200 extra steps — add after base validated
+14. **Attention Output Gate + SmearGate (PR #1667)** — 1,056 extra params (12×8×11 heads); multiplicative per-head gate init to zero; appears legal, no reviews yet; stack with #1586 — **evaluate in same run**
+15. **TMA Megakernel (Triton TMA fused MLP)** — PR #1555, +10.5% throughput = ~200 extra steps — add after base validated
 
-**Key reference PRs**: #1493 (merged SOTA 1.0810), #1586 (1.07493, per-layer GPTQ — implement now), #1560 (1.07406, best open safe — VarLen+Doc-TTT), #1584 (1.0752, systems opt — fused Muon/EMA/prealloc), #1555 (1.07636, TMA Megakernel+Tap-In), #1333 (1.07660, Causal SLOT-16 — risky), #1437 (1.08091, causal-fixed N-gram Tilt kernel — use this), #1413 (1.08279, SP8192+Legal TTT), #1334 (1.0897, arch reference), #1229 (0.9300, scored-position SLOT, open)
+**Key reference PRs**: #1493 (merged SOTA 1.0810), #1670 (1.05970, dexhunter Casefold V4+Multi-Phase TTT — await casefold ruling), #1667 (1.07139, Attention Output Gate+SmearGate — clean, stack on #1586), #1586 (1.07493, per-layer GPTQ — implement now), #1560 (1.07406, best open safe — VarLen+Doc-TTT), #1584 (1.0752, systems opt — fused Muon/EMA/prealloc), #1555 (1.07636, TMA Megakernel+Tap-In), #1333 (1.07660, Causal SLOT-16 — risky), #1437 (1.08091, causal-fixed N-gram Tilt kernel — use this), #1413 (1.08279, SP8192+Legal TTT), #1334 (1.0897, arch reference), #1229 (0.9300, scored-position SLOT, open)
 
 **Abandoned approaches**: Training-time static LoRA TTT (hurts), product quantization (SWA-incompatible), custom Triton kernels (poor EV — REVERTED: PR #1420 shows +10% via Triton TMA, revisit after base works), int4 without QAT (quality-destructive), eval stride=32 (time budget), AdamW TTT 30ep (illegal), n-gram hash cache (illegal), pre-quant TTT any form (illegal), Eval-Time Hash Embedding trained at inference (suspect illegal — same adapt-then-score pattern), Tap-In V6 document-local matching (await ruling), GDN-Hybrid #1576 (BPB bug — actual ~1.17 not 1.01671).
 **NOTE**: Doc-Independent LoRA TTT (PR #1540, rank-96, resets per batch, score-first) is categorically DIFFERENT from abandoned LoRA TTT and appears legal — consider adopting.
@@ -178,6 +182,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | **VarLen Attention + Doc-TTT** | **~-0.007** | **LEGAL — PR #1560 (dexhunter, 1.07406 BPB); per-document causal masking + score-first TTT per-doc; LoRA chunk=48** |
 | **TMA Megakernel (Triton Hopper fused MLP)** | **+200 steps (~-0.002)** | **LEGAL — PR #1555; +10.5% throughput; add after base validated** |
 | **Tap-In Unigram Matching (min_match=1)** | **~-0.009** | **LEGALITY UNCONFIRMED — PR #1555; 21% activation rate; verify before implementing** |
+| **Attention Output Gate + SmearGate (PR #1667)** | **~-0.006 bpb (vs merged SOTA)** | **APPEARS LEGAL — PR #1667 (MarioPaerle, 1.07139 BPB); per-head multiplicative gate (1,056 params, init to zero); SmearGate width=12; no reviews; stack on PR #1586** |
 | **Per-Layer Adaptive GPTQ (MLP=12σ, Attn=13σ) + int7 Emb** | **-0.013 nats (-0.0046 bpb)** | **LEGAL — PR #1586 (dexhunter, 1.07493 BPB); MLP tighter clip, Attn looser, int7 emb saves 530KB; MLR=0.026; IMPLEMENT IMMEDIATELY** |
 | **Systems Opt (fused Muon + batched EMA + loader prealloc)** | **~+20 steps (~-0.001 bpb)** | **LEGAL — PR #1584 (codemath3000, 1.0752); pure kernel/memory efficiency; no ML changes** |
 | **Casefold Tokenizer (NFKC + lowercase BPE retrain)** | **~-0.017 bpb** | **LEGALITY DEBATED — PR #1578 (1.0668), #1585 (1.0639); modifying val corpus byte count raises comparability concern; await @valerio-oai ruling** |
@@ -363,3 +368,13 @@ _Updated: 2026-04-14 (v12.3 — merged SOTA 1.0810 Day 5 no change; PR #1610 Pha
 77. **No new open PRs filed Apr 14–15 with competitive scores.** Web search and git log show nothing new. PR #1619 (likely illegal AdamW TTT) and PR #1616 (QK-Gain 5.5) are low-interest. The competitive field is in a holding pattern — same 8 PRs as yesterday.
 
 _Updated: 2026-04-15 (v12.4 — merged SOTA 1.0810 Day 6 no change; Newton-Muon arXiv:2604.01472 added (+6% effective steps, verify vs MuonEq-R); In-Place TTT (2604.06169) NTP-aligned loss distinguishes it from Session 3 failure; 15 days remaining)_
+
+### Session 15 (2026-04-16)
+78. **Merged SOTA 1.0810 — Day 7 plateau, longest in competition history.** Seven days since last merge (Apr 9). With 14 days to deadline, the field appears to be preparing a late push. Do not take the plateau as stability — a wave of merges is likely imminent given 8+ open PRs in the 1.062–1.078 range.
+79. **PR #1667 (MarioPaerle, 1.07139) is a new clean stackable technique.** Attention Output Gate: 1,056 parameter multiplicative gate on attention output heads (12 weights × 8 heads × 11 layers), initialized to zero so scale starts at 1.0. SmearGate reintroduced (width=12, input-dependent). Legal score-first TTT (3ep, SGD, LR=0.005). Artifact 15.927 MB. No legality flags. Stack this on top of PR #1586 before next GPU run.
+80. **PR #1670 (dexhunter, 1.05970) is the new best open PR — but depends on casefold ruling.** Casefold V4 + Multi-Phase Global SGD TTT achieves 1.05970 (std 0.00031, 3-seed). The Casefold legality question (Issue #1604) has no @valerio-oai ruling as of Apr 16. Do NOT implement until ruled. If casefold is approved, this becomes the primary target and resets our goal to ≤1.0499.
+81. **PR #1647 (powerpratik, 1.0616) uses standard SLOT-4 — high risk.** Delta-vector logit bias optimized 4 AdamW steps per window. No organizer reviews yet. Standard SLOT (not causal SLOT-16). Risk: @valerio-oai could rule at any time. Only implement if willing to accept rejection.
+82. **PR #731 (Hedge Mixer, 1.0400) is close to merge — 2 seeds pending.** Dense-count tables + Laplace smoothing + 5-expert ensemble. Reviewer confirmed score-first per chunk and said "LOOKS CLEAN." Seeds 1337 and 2024 are the only remaining gate. If both seeds confirm ~1.04, this merges and gives us a legal n-gram mixer blueprint.
+83. **dexhunter now holds 3 of the top-5 open legal PRs (#1560, #1586, #1670).** Highly reliable submitter with zero legality flags across all PRs. Copy techniques from his PRs with confidence.
+
+_Updated: 2026-04-16 (v12.5 — merged SOTA 1.0810 Day 7; PR #1667 Attention Output Gate new clean stackable tech; PR #1670 dexhunter 1.05970 best open but casefold pending; PR #1647 SLOT-4 risky; PR #731 seeds pending; 14 days remaining)_

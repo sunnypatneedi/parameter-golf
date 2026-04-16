@@ -1,3 +1,125 @@
+# Parameter Golf Daily Research - 2026-04-16
+
+## PR #771 STATUS: CLOSED (REJECTED) — no change
+
+@valerio-oai ruling (confirmed): "adapting model to eval tokens with TTT for multiple epochs, then reporting val numbers on those same tokens." No appeal path.
+
+---
+
+## N-GRAM PR STATUS
+
+| PR | Score | Status | Notes |
+|----|-------|--------|-------|
+| #727 | 0.9674 | **CLOSED** (illegal) | Hashed n-gram cache — ruled out Mar 27 |
+| #741 | 0.9850 | **CLOSED** (illegal) | Author self-closed, same illegality |
+| #758 | 1.0465 | **OPEN** (dead) | XOR hash key includes target token — same violation as #727. No new activity. |
+| #731 | 1.0400 | **OPEN** | Dense-count + Laplace smoothing. MatoTeziTanka "LOOKS CLEAN." Seed 42 only; seeds 1337+2024 pending. 6104 steps, 15,999,919 bytes. |
+
+---
+
+## Leaderboard
+
+**Merged SOTA: 1.0810 (bigbag, PR #1493) — DAY 7 UNCHANGED.**
+
+Last upstream commit: `75700cb` April 9, 2026. Longest plateau since the Apr 5–9 acceleration wave. No new records in 7 days. Expect a merge wave before deadline (April 30 = 14 days).
+
+### Best Open PRs (updated Apr 16)
+
+| PR | Score | Author | Technique | Legal? |
+|----|-------|--------|-----------|--------|
+| #1670 | **1.05970** | dexhunter | Casefold V4 + Multi-Phase Global SGD TTT | **AWAIT CASEFOLD RULING** |
+| #1647 | **1.0616** | powerpratik | SLOT-4 + TTT + 3-Layer Recurrence + Parallel Residuals | ⚠️ SLOT unruled |
+| #1585 | **1.0639** | codemath3000 | Casefold Tokenizer + Parallel Residuals + Systems Opt | **AWAIT RULING** |
+| #1578 | **1.0668** | mikeapedia | Custom Casefold BPE retrain | **AWAIT RULING** |
+| #1560 | **1.07406** | dexhunter | VarLen Attention + Doc-TTT | **YES** |
+| #1586 | **1.07493** | dexhunter | Per-Layer Adaptive GPTQ + int7 Emb + MLR=0.026 | **YES** |
+| #1667 | **1.07139** | MarioPaerle | SmearGate + Attention Output Gate (1,056 params) + Legal TTT | **YES — no reviews yet, appears clean** |
+| #1610 | **1.0728** | romeerp | VarLenAttn + PhasingTTT | YES (low EV) |
+| #1584 | **1.0752** | codemath3000 | Systems Opt (fused Muon + batched EMA + loader prealloc) | **YES** |
+| #1555 | **1.07636** | andrewbaggio1 | TMA Megakernel + Tap-In (min_match=1) | Tap-In unconfirmed |
+| #1541 | **1.07785** | bigbag | Improved Parallel Residuals + Muon 0.97 | ⚠️ hash embed flag |
+| #1540 | **1.0777** | aryanbhosale | VarLen + Doc-Independent LoRA TTT rank-96 | **YES** |
+
+**Target**: ≤1.0760 bpb. 14 days remaining (April 30 deadline).
+
+---
+
+## What Changed (GitHub — Apr 15–16, 2026)
+
+### No new merges. Day 7 plateau continues.
+
+### New Open PRs (filed Apr 14–16)
+
+**PR #1670** (dexhunter, **1.05970**, new best open) — ⚠️ AWAIT CASEFOLD RULING
+- Casefold V4: lowercase normalization before SP8192 tokenization ("reduces vocabulary entropy")
+- Multi-Phase Global SGD TTT: 3 phases across 2000 prefix documents (builds on PR #1626)
+- std dev 0.00031 (3-seed), artifact ~15.20 MB
+- TTT phase ordering unclear (score-first vs. train-then-score not explicit in docs)
+- **Depends on casefold ruling at Issue #1604** (open, no @valerio-oai comment yet)
+- **Do NOT implement until casefold ruled legal**
+
+**PR #1667** (MarioPaerle, **1.07139**) — ✅ CLEAN, APPEARS LEGAL
+- Attention Output Gate: lightweight per-head multiplicative gate on attention output; 1,056 new params (12 weights × 8 heads × 11 layers); initialized to zero → scale=1.0 at start
+- SmearGate: reintroduced with input dependence (Modded Nano GPT style), width=12
+- Legal score-first TTT, 3ep, LR=0.005, SGD
+- 3-seed mean 1.07139 (std 0.00082), artifact 15.927 MB (max 15.94 MB)
+- No organizer feedback; self-certified compliance
+- **Stack this on PR #1586 for potential additive improvement**
+
+**PR #1647** (powerpratik, **1.0616**) — ⚠️ RISKY (SLOT)
+- SLOT-4: per-window delta-vector logit bias, 4 AdamW steps
+- Standard SLOT (not Causal SLOT-16)
+- No reviews yet from any reviewer
+- Do NOT implement until SLOT receives organizer ruling
+
+**PR #1671** (souro26, 1.3827): Token-wise gating — well above baseline, skip
+**PR #1666** (mrbese, 1.1531): BESE 288-vocab tokenizer — not competitive
+
+### Issue #1604 (casefold tokenizer legality): Still OPEN
+- Filed Apr 13 by mikeapedia; no @valerio-oai comment as of Apr 16
+- Core question: does NFKC + lowercase on validation corpus constitute invalid benchmark manipulation?
+- Three community members debating; no ruling
+
+---
+
+## New Research Papers
+
+| Priority | Paper | arXiv ID | Date | Key Technique | Applicability |
+|----------|-------|----------|------|---------------|--------------|
+| Watch | Self-Calibrating LMs via TTT Discriminative Distillation (SECL) | 2604.09624 | Apr 2026 | TTT pipeline that reduces ECE via discriminative distillation; score-first compatible | Targets calibration (ECE), not BPB. Low direct impact on our metric. |
+| Already tracked | End-to-End TTT for Long Context | 2512.23675 | Dec 2025 | Compresses context to weights at test time via next-token prediction; scales with context length | Relevant to Doc-TTT quality; LaCT (2505.23884) is the higher-EV variant already in plan |
+| Already tracked | Newton-Muon | 2604.01472 | Apr 2026 | +6% fewer steps, +4% wall-clock vs standard Muon | Verify additive with MuonEq-R before GPU spend |
+| Skip | LieQ (layer-wise quant for small LMs) | 2508.03332 | Aug 2025 | Canonical division of labour across layers for PTQ; 2-bit target | Not applicable — we use int6/int7 GPTQ, not sub-4-bit regime |
+
+No new breakthrough papers today. arXiv:2604.09624 (SECL) is the sole new find; low direct impact.
+
+---
+
+## HuggingFace / Community
+
+No new relevant blog posts. dexhunter filed PR #1670 (1.05970) — their third top-10 PR (#1560, #1586, #1670). MarioPaerle is a new submitter worth watching (PR #1667 technique is clean and implementable).
+
+---
+
+## Recommended Action
+
+**No change to core strategy. Two additions: PR #1667 Attention Output Gate is now a candidate to stack; casefold watch continues.**
+
+Priority order for next GPU run:
+1. **Implement PR #1586** (per-layer GPTQ: MLP=12σ, Attn=13σ, Emb int7@15σ; MLR=0.026). Config-level change, -0.01266 nats confirmed, zero legality risk.
+2. **Add VarLen Attention + Doc-TTT** (PR #1560 approach): -0.007 bpb. Combined target with #1: ~1.062–1.068 bpb.
+3. **Evaluate PR #1667 Attention Output Gate + SmearGate** on same run or follow-up: 1,056 extra params, no legality concerns. If additive with #1586 + #1560, expected combined ~1.065–1.070.
+4. **Watch PR #1731** — if third seed confirms 1.0400 BPB and merges, Hedge Mixer (legal n-gram interpolation) is adoptable.
+5. **Watch Issue #1604** — if casefold ruled legal, PR #1670 (dexhunter, 1.05970) jumps to highest-EV action; reset target to ≤1.0499.
+
+**Do NOT implement**: Casefold (#1670, #1585, #1578 — await ruling), SLOT (#1647 — unruled), PR #758 (dead), AdamW multi-epoch TTT, pre-quant TTT.
+
+---
+
+_Updated: 2026-04-16 (merged SOTA 1.0810 Day 7 no change; PR #1667 MarioPaerle new clean PR (1.07139, Attention Output Gate + SmearGate); PR #1670 dexhunter new best open (1.05970) but pending casefold ruling; PR #1647 SLOT-4 (1.0616) risky; casefold Issue #1604 open; 14 days remaining)_
+
+---
+
 # Parameter Golf Daily Research - 2026-04-15
 
 ## PR #771 STATUS: CLOSED (REJECTED) — no change
