@@ -112,9 +112,11 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — NO CHANGE (confirmed Apr 16, Day 7 plateau)
-**Best open legal PRs (Apr 16 update)**:
-  - PR #1670 (dexhunter, **1.05970**): Casefold V4 + Multi-Phase Global SGD TTT — **AWAIT CASEFOLD RULING (Issue #1604)**
+**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — NO CHANGE (confirmed Apr 17, Day 8 plateau — longest in competition history)
+**Best open legal PRs (Apr 17 update)**:
+  - PR #1698 (arsenis-cmd, **1.00995**): GatedDeltaNet (FLA) + Legal Score-First TTT — **⚠️ ARTIFACT SIZE CONCERN: 16.6MB decimal vs 16MB limit; await organizer ruling. If compliant: new dominant target architecture.**
+  - PR #1693 (dexhunter, **1.05733**): Casefold V4 + AttnOutGate + SmearGate + Multi-Phase Global SGD TTT — **AWAIT CASEFOLD RULING (Issue #1604)** (improved from PR #1670's 1.05970)
+  - PR #1670 (dexhunter, **1.05970**): Casefold V4 + Multi-Phase Global SGD TTT — superseded by PR #1693; **AWAIT CASEFOLD RULING**
   - PR #1667 (MarioPaerle, **1.07139**): SmearGate + Attention Output Gate (1,056 params, 12×8×11 heads) + Legal TTT — **CLEAN, no reviews, stack on #1586**
   - PR #1586 (dexhunter, **1.07493**): Per-Layer Adaptive GPTQ (MLP=12σ, Attn=13σ) + int7 Emb (15σ) + MLR=0.026 — **CLEAN, implement immediately**
   - PR #1560 (dexhunter, **1.07406**): VarLen Attention + Triton Fused MLP + Doc-TTT — appears legal (no reviews yet)
@@ -124,12 +126,13 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
   - PR #1540 (aryanbhosale, **1.0777**): VarLen Attention + Doc-Independent LoRA TTT rank-96 + Triton TMA — appears legal
   - PR #1564 (joshkmartinez, **1.01710**): CLOSED (superseded by PR #1575 by same author)
   - PR #1576 (joshkmartinez, **~~1.01671~~**): GDN-Hybrid — **BPB BUG confirmed by reviewer** (space token double-count from PR #1545), actual ~1.16–1.18 BPB. Do NOT track.
+  - PR #1687 (resouer, **~~1.04090~~**): K_KVShare_Wider FLA — **CLOSED: BPB BUG** (same SP leading-space double-count; actual ~1.22 BPB). Do NOT track.
   - PR #1585 (codemath3000, **1.0639**): Casefold Tokenizer — **LEGALITY DEBATED** (modifying val corpus bytes); await organizer ruling
   - PR #1578 (mikeapedia, **1.0668**): Custom Casefold Tokenizer — **LEGALITY DEBATED**; same concern as #1585
   - PR #1647 (powerpratik, **1.0616**): SLOT-4 + TTT + 3-Layer Recurrence + Parallel Residuals — ⚠️ standard SLOT, no reviews
 **Best open with SLOT**: ~1.0616 val_bpb (PR #1647, powerpratik, SLOT-4) — no reviews yet
 **Best open (illegal)**: 1.0632 (PR #1517, RulinShao, Pre-Quant TTT 18ep — same ruling as #1351/#1416)
-**Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable: ~1.068–1.072 (legal stack #1586+#1667+#1560). With casefold if ruled legal: ~1.059. **14 days to deadline (Apr 30).**
+**Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable (legal, no GDN): ~1.068–1.072 (legal stack #1586+#1667+#1560). With casefold if ruled legal: ~1.057. If PR #1698 GDN compliant: must beat ~1.0049. **13 days to deadline (Apr 30).**
 
 **CRITICAL LEGALITY UPDATES**:
 - **PR #771 REJECTED (2026-03-27)** — Our AdamW TTT 30ep was train-then-score. All 30-epoch TTT results void.
@@ -378,3 +381,12 @@ _Updated: 2026-04-15 (v12.4 — merged SOTA 1.0810 Day 6 no change; Newton-Muon 
 83. **dexhunter now holds 3 of the top-5 open legal PRs (#1560, #1586, #1670).** Highly reliable submitter with zero legality flags across all PRs. Copy techniques from his PRs with confidence.
 
 _Updated: 2026-04-16 (v12.5 — merged SOTA 1.0810 Day 7; PR #1667 Attention Output Gate new clean stackable tech; PR #1670 dexhunter 1.05970 best open but casefold pending; PR #1647 SLOT-4 risky; PR #731 seeds pending; 14 days remaining)_
+
+### Session 16 (2026-04-17)
+84. **PR #1698 (arsenis-cmd, GatedDeltaNet FLA, 1.00995 BPB) is the most significant new open PR — but has an artifact size concern.** Artifacts are 16.6MB decimal (16,600,916 bytes) vs the 16,000,000-byte competition limit. Author claims "under 16 MiB" (16,777,216 bytes). If organizers enforce 16 MB decimal, PR is disqualified. If organizers accept 16 MiB (binary), PR is clean. Do NOT invest GPU time in GDN rewrite until artifact limit is resolved.
+85. **The BPB bug pattern (SP leading-space double-count) keeps recurring.** PR #1687 (resouer, claimed 1.04090) is the 4th instance — @bigbag caught it again. Actual score ~1.22 BPB. Any extraordinary score claim from an FLA/GDN PR must be verified against SP byte-counting at line ~192–205 in training script before tracking.
+86. **dexhunter's PR #1693 supersedes PR #1670 for casefold.** Stacks AttnOutGate + SmearGate on Casefold V4 + Multi-Phase TTT for 1.05733 (down from 1.05970). If casefold is ruled legal, our target resets to ≤1.0523. Still awaiting @valerio-oai ruling on Issue #1604.
+87. **Merged SOTA at Day 8 plateau — expect imminent wave.** Eight open PRs within 1.062–1.078 BPB range (no GDN). If PR #1698 artifact is ruled compliant and merges, new merged SOTA becomes ~1.010 and our entire incremental strategy is obsolete. Check leaderboard at session start every day.
+88. **PR #731 Hedge Mixer still needs 2 seeds.** "LOOKS CLEAN" from reviewer. Seeds 1337 and 2024 pending. If confirmed ~1.04 and merged, legal n-gram mixer blueprint available with dense-count tables + Laplace smoothing.
+
+_Updated: 2026-04-17 (v13.0 — PR #1698 GatedDeltaNet FLA 1.00995 flagged artifact size concern; PR #1687 CLOSED BPB bug; PR #1693 dexhunter 1.05733 casefold leader; merged SOTA 1.0810 Day 8; 13 days remaining)_
