@@ -112,27 +112,30 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — NO CHANGE (confirmed Apr 17, Day 8 plateau — longest in competition history)
-**Best open legal PRs (Apr 17 update)**:
-  - PR #1698 (arsenis-cmd, **1.00995**): GatedDeltaNet (FLA) + Legal Score-First TTT — **⚠️ ARTIFACT SIZE CONCERN: 16.6MB decimal vs 16MB limit; await organizer ruling. If compliant: new dominant target architecture.**
-  - PR #1693 (dexhunter, **1.05733**): Casefold V4 + AttnOutGate + SmearGate + Multi-Phase Global SGD TTT — **AWAIT CASEFOLD RULING (Issue #1604)** (improved from PR #1670's 1.05970)
-  - PR #1670 (dexhunter, **1.05970**): Casefold V4 + Multi-Phase Global SGD TTT — superseded by PR #1693; **AWAIT CASEFOLD RULING**
+**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — NO CHANGE (confirmed Apr 19, Day 10 plateau — longest in competition history)
+**Best open legal PRs (Apr 19 update)**:
+  - PR #1698 (arsenis-cmd, **~~1.00995~~**): GatedDeltaNet (FLA) — **EFFECTIVELY DEAD**: BPB bug confirmed by dexhunter (double-count in `build_sentencepiece_luts`, actual ~1.189 BPB) + artifact size violation (16.47–16.60MB vs 16MB decimal limit). No organizer response; author lost GPU access. Do NOT track.
+  - PR #1738 (alertcat, **1.03540**): CaseOps V15 + PR #1735 Pre-Quant TTT — **⚠️ BUILDS ON ILLEGAL PR #1735** (pre-quant AdamW TTT 21ep, flagged by dexhunter). No reviews. Score likely void once PR #1735 is rejected.
+  - PR #1736 (dexhunter, **1.06549**): CaseOps bijective tokenizer + GatedAttn + QuantGate + SP8192 — **CLEANEST new PR**, no legality flags. Await Issue #1604 CaseOps ruling. QuantGate compensates artifact overhead.
+  - PR #1693 (dexhunter, **1.05733**): Casefold V4 + AttnOutGate + SmearGate + Multi-Phase Global SGD TTT — **AWAIT CASEFOLD RULING (Issue #1604)**
+  - PR #1729 (romeerp, **1.0678**): CaseOps bijective tokenizer + Tapered WD (50% at 70% training) — bijective/reversible, BPB via byte sidecar; await Issue #1604 ruling
   - PR #1667 (MarioPaerle, **1.07139**): SmearGate + Attention Output Gate (1,056 params, 12×8×11 heads) + Legal TTT — **CLEAN, no reviews, stack on #1586**
+  - PR #1727 (yahya010, **1.07217**): MP-SGD TTT 4 phases + QK-Gain 5.25 — **APPEARS LEGAL** (score-first per phase, explicit compliance notes); extends prior PR #1700 (3 phases); stackable
   - PR #1586 (dexhunter, **1.07493**): Per-Layer Adaptive GPTQ (MLP=12σ, Attn=13σ) + int7 Emb (15σ) + MLR=0.026 — **CLEAN, implement immediately**
+  - PR #1732 (Victory963, **1.0785**): Hadamard Rotation + AWQ + Parallel Residuals — open, no reviews; new quantization approach
   - PR #1560 (dexhunter, **1.07406**): VarLen Attention + Triton Fused MLP + Doc-TTT — appears legal (no reviews yet)
   - PR #1584 (codemath3000, **1.0752**): Systems-only (fused Muon + batched EMA + loader prealloc), ~20 extra steps
   - PR #1555 (andrewbaggio1, **1.07636**): TMA Megakernel + Improved Parallel Residuals + Tap-In min_match=1
   - PR #1541 (bigbag, **1.07785**): Improved Parallel Residuals (cross-lane learned scalars) + Muon 0.97 — ⚠️ hash embed flag pending
   - PR #1540 (aryanbhosale, **1.0777**): VarLen Attention + Doc-Independent LoRA TTT rank-96 + Triton TMA — appears legal
-  - PR #1564 (joshkmartinez, **1.01710**): CLOSED (superseded by PR #1575 by same author)
-  - PR #1576 (joshkmartinez, **~~1.01671~~**): GDN-Hybrid — **BPB BUG confirmed by reviewer** (space token double-count from PR #1545), actual ~1.16–1.18 BPB. Do NOT track.
-  - PR #1687 (resouer, **~~1.04090~~**): K_KVShare_Wider FLA — **CLOSED: BPB BUG** (same SP leading-space double-count; actual ~1.22 BPB). Do NOT track.
-  - PR #1585 (codemath3000, **1.0639**): Casefold Tokenizer — **LEGALITY DEBATED** (modifying val corpus bytes); await organizer ruling
-  - PR #1578 (mikeapedia, **1.0668**): Custom Casefold Tokenizer — **LEGALITY DEBATED**; same concern as #1585
+  - PR #1735 (AjAnubolu, **1.0429**): Pre-Quant AdamW TTT 21ep — **⚠️ LIKELY ILLEGAL** (flagged by dexhunter: adapt-then-score, same pattern as #1351/#1416/#1408)
+  - PR #1576 (joshkmartinez, **~~1.01671~~**): GDN-Hybrid — **BPB BUG confirmed** (space token double-count from PR #1545), actual ~1.16–1.18 BPB. Do NOT track.
+  - PR #1687 (resouer, **~~1.04090~~**): K_KVShare_Wider FLA — **CLOSED: BPB BUG**. Do NOT track.
+  - PR #1585 (codemath3000, **1.0639**): Casefold Tokenizer — **LEGALITY DEBATED** (Issue #1604); await ruling
   - PR #1647 (powerpratik, **1.0616**): SLOT-4 + TTT + 3-Layer Recurrence + Parallel Residuals — ⚠️ standard SLOT, no reviews
 **Best open with SLOT**: ~1.0616 val_bpb (PR #1647, powerpratik, SLOT-4) — no reviews yet
 **Best open (illegal)**: 1.0632 (PR #1517, RulinShao, Pre-Quant TTT 18ep — same ruling as #1351/#1416)
-**Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable (legal, no GDN): ~1.068–1.072 (legal stack #1586+#1667+#1560). With casefold if ruled legal: ~1.057. If PR #1698 GDN compliant: must beat ~1.0049. **13 days to deadline (Apr 30).**
+**Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable (legal, no CaseOps): ~1.068–1.072 (legal stack #1586+#1667+#1727+#1560). With CaseOps if ruled legal: ~1.065 (PR #1736). **11 days to deadline (Apr 30).**
 
 **CRITICAL LEGALITY UPDATES**:
 - **PR #771 REJECTED (2026-03-27)** — Our AdamW TTT 30ep was train-then-score. All 30-epoch TTT results void.
@@ -188,8 +191,10 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | **Attention Output Gate + SmearGate (PR #1667)** | **~-0.006 bpb (vs merged SOTA)** | **APPEARS LEGAL — PR #1667 (MarioPaerle, 1.07139 BPB); per-head multiplicative gate (1,056 params, init to zero); SmearGate width=12; no reviews; stack on PR #1586** |
 | **Per-Layer Adaptive GPTQ (MLP=12σ, Attn=13σ) + int7 Emb** | **-0.013 nats (-0.0046 bpb)** | **LEGAL — PR #1586 (dexhunter, 1.07493 BPB); MLP tighter clip, Attn looser, int7 emb saves 530KB; MLR=0.026; IMPLEMENT IMMEDIATELY** |
 | **Systems Opt (fused Muon + batched EMA + loader prealloc)** | **~+20 steps (~-0.001 bpb)** | **LEGAL — PR #1584 (codemath3000, 1.0752); pure kernel/memory efficiency; no ML changes** |
+| **CaseOps Bijective Tokenizer** | **~-0.014 bpb (est.)** | **LEGALITY DEBATED — PR #1729 (romeerp, 1.0678), #1736 (dexhunter, 1.06549); reversible case-factoring (TITLE/ALLCAPS/CAPNEXT/ESC control tokens); BPB on original UTF-8 via byte sidecar; stronger legality than casefold; await Issue #1604 ruling** |
+| **MP-SGD TTT 4 phases** | **~-0.009 bpb (est.)** | **APPEARS LEGAL — PR #1727 (yahya010, 1.07217); score-first each phase, all under torch.no_grad() before update; extends 3-phase approach; stackable** |
 | **Casefold Tokenizer (NFKC + lowercase BPE retrain)** | **~-0.017 bpb** | **LEGALITY DEBATED — PR #1578 (1.0668), #1585 (1.0639); modifying val corpus byte count raises comparability concern; await @valerio-oai ruling** |
-| **GDN-Hybrid Architecture (Gated DeltaNet + SWA)** | **~~-0.064 vs merged SOTA~~ → BPB BUG** | **BPB CALCULATION BUG (Apr 13 confirmed) — PR #1576 space-token double-count; actual ~1.16–1.18, not 1.01671. Monitor for fix before investing.** |
+| **GDN-Hybrid Architecture (Gated DeltaNet + SWA)** | **~~-0.064 vs merged SOTA~~ → BPB BUG** | **BPB CALCULATION BUG (Apr 13 confirmed) — PR #1576 space-token double-count; actual ~1.16–1.18, not 1.01671. PR #1698 (arsenis-cmd) also has same bug + artifact size violation. All GDN PRs effectively dead.** |
 | **Triple Loop (3× depth recurrence)** | **~-0.009 vs 2×** | **IN MERGED SOTA — PR #1493 (1.0810); 17 virtual layers; activate at 0.35× training** |
 | **SP8192 vocab** | **~-0.009 vs SP4096** | **IN MERGED SOTA — PR #1493** |
 | **GPTQ Embeddings (int8) + SDClip** | **~-0.003 + artifact** | **IN MERGED SOTA — PR #1394; saves ~4MB artifact budget** |
@@ -390,3 +395,12 @@ _Updated: 2026-04-16 (v12.5 — merged SOTA 1.0810 Day 7; PR #1667 Attention Out
 88. **PR #731 Hedge Mixer still needs 2 seeds.** "LOOKS CLEAN" from reviewer. Seeds 1337 and 2024 pending. If confirmed ~1.04 and merged, legal n-gram mixer blueprint available with dense-count tables + Laplace smoothing.
 
 _Updated: 2026-04-17 (v13.0 — PR #1698 GatedDeltaNet FLA 1.00995 flagged artifact size concern; PR #1687 CLOSED BPB bug; PR #1693 dexhunter 1.05733 casefold leader; merged SOTA 1.0810 Day 8; 13 days remaining)_
+
+### Session 17 (2026-04-19)
+89. **PR #1698 (GDN FLA) is now effectively dead.** dexhunter confirmed BPB bug in `build_sentencepiece_luts` (leading-space double-count, same pattern as PR #1545/1576/1687) — corrected actual score is ~1.189 BPB, not 1.00995. Artifact size also confirmed over-limit (16.47–16.60MB vs 16MB decimal). Author has no GPU access. Do NOT track.
+90. **CaseOps bijective tokenizer is a distinct and potentially legal approach.** Three PRs (#1729 romeerp, #1736 dexhunter, #1738 alertcat) use a reversible case-factoring transform: capitalization encoded as control tokens (TITLE/ALLCAPS/CAPNEXT/ESC), fully reconstructible, BPB scored on original UTF-8 bytes via byte sidecar. Unlike casefold (which permanently discards case), CaseOps is lossless and has a stronger legality argument. Awaiting Issue #1604 @valerio-oai ruling. dexhunter (most reliable submitter) achieves 1.06549 with CaseOps + GatedAttn + QuantGate (PR #1736).
+91. **PR #1735 (AjAnubolu, 1.0429) is pre-quant TTT — flagged by dexhunter as illegal.** "pre_quant_adamw_ttt runs 21 AdamW epochs over the full val stream before the final BPB is scored on the same tokens." Same adapt-then-score pattern as PR #1351/#1408/#1416. PR #1738 (alertcat, 1.03540) builds on PR #1735 — both scores likely void. Do NOT implement.
+92. **MP-SGD TTT 4 phases (PR #1727, yahya010, 1.07217) appears legal.** Each phase scores under `torch.no_grad()` before any SGD update, all four phases fit within the 600s eval budget. Extends earlier 3-phase approach. Stackable with #1586+#1667.
+93. **Merged SOTA plateau now 10 days (Apr 9 → Apr 19) — deadline is 11 days away.** With 8+ open PRs in 1.062–1.078 range, a merge wave is overdue. Implementing #1586 immediately is critical — every day without it is wasted headroom.
+
+_Updated: 2026-04-19 (v14.0 — PR #1698 GDN effectively dead (BPB bug ~1.189 + artifact violation); CaseOps bijective tokenizer new community technique (#1729/#1736/#1738); PR #1735 pre-quant TTT flagged illegal; PR #1727 MP-SGD TTT 4-phase appears legal at 1.07217; merged SOTA 1.0810 Day 10; 11 days remaining)_
