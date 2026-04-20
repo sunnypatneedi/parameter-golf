@@ -115,3 +115,77 @@ O(n) recurrence combining delta rule + gating. PR #1743 (WIP) is pursuing this. 
 ---
 
 _Updated: 2026-04-19 (v14.0 — PR #1698 GDN effectively dead (BPB bug ~1.189 actual + artifact violation); CaseOps bijective tokenizer emerging as new community technique (#1729, #1736, #1738); PR #1735 pre-quant TTT flagged illegal; PR #1727 MP-SGD TTT 4-phase appears legal; merged SOTA 1.0810 Day 10 plateau; 11 days to deadline)_
+
+---
+
+# Parameter Golf Daily Research - 2026-04-20
+
+## PR #771 STATUS: CLOSED (ILLEGAL — confirmed, no change)
+
+Rejected by @valerio-oai 2026-03-27. Train-then-score AdamW TTT 30ep on val tokens. No new comments.
+
+## N-GRAM PR STATUS
+
+- **PR #727** (0.9674): CLOSED — @valerio-oai ruled n-gram hash caches without proper renormalization illegal. Permanent.
+- **PR #758** (1.0465): OPEN but EFFECTIVELY DEAD — MatoTeziTanka flagged Apr 12: XOR hash key incorporates target token (same violation as #727). Neural base only ~1.10–1.15 BPB. No fix submitted.
+- **PR #731** (1.0400): OPEN — Reviewer says "LOOKS CLEAN" (dense count tables + Laplace smoothing, score-first per chunk). Seeds 1337 and 2024 still NOT reported as of Apr 20.
+
+## Leaderboard
+
+- **Merged SOTA**: 1.0810 (bigbag, PR #1493) — **DAY 11 PLATEAU**, now the longest in competition history (Apr 9 → Apr 20). 10 days to deadline (Apr 30).
+- **Best open (legal, no CaseOps)**: 1.07139 (MarioPaerle, PR #1667, Attention Output Gate + SmearGate)
+- **Best open (legal, incl. CaseOps if ruled legal)**: 1.06549 (dexhunter, PR #1736)
+- **Our PR #771**: 1.0705 — CLOSED (illegal)
+
+## What Changed (GitHub — Apr 20)
+
+**New PRs filed today:**
+
+- **PR #1751** (Pravin-dev06): Parallel-Residual + SwiGLU + 11 layers — Non-record. Best: 1.3565 BPB (not competitive).
+- **PR #1750** (teslaeco): SP8192 + 3-layer recurrence + parallel residuals + legal score-first TTT — 1.08089 (3-seed mean, seeds 42/314/999). Replicates merged SOTA but does NOT beat it. No new technique.
+- **PR #1749** (gracebml): GDN-Hybrid + Legal Score-First TTT + Full-Hessian GPTQ Int6 — 1.0996 (single seed, 28% of 8xH100 budget on 1xH100). Artifact 14.03 MB. **Not yet competitive; needs full 8xH100 run for valid score. Monitor.**
+- **PR #1748** (elad-simbalista): Basic baseline improvement — not competitive.
+- **PR #1747** (swapp1990): SP8192 + Partial RoPE (16/64) + GPTQ SDClip + SGD TTT — 1.0820 (3-seed). Worse than merged SOTA.
+- **PR #1744** (MuhammedErinArchitecture): SP8192 + QK5 + Freeze10 Loss-Gated Legal TTT — 1.08886 (single seed). Not competitive.
+
+**Key open PRs — no status change since Apr 19:**
+
+| PR | Author | Val BPB | Technique | Status |
+|----|--------|---------|-----------|--------|
+| #1586 | dexhunter | 1.07493 | Per-layer GPTQ (MLP=12σ, Attn=13σ) + int7 Emb@15σ + MLR=0.026 | OPEN, no reviews |
+| #1667 | MarioPaerle | 1.07139 | Attention Output Gate (1,056 params) + SmearGate (w=12) | OPEN, no reviews |
+| #1727 | yahya010 | 1.07217 | MP-SGD TTT 4 phases (score-first per phase) | OPEN, no reviews |
+| #1560 | dexhunter | 1.07406 | VarLen Attention (per-doc masking) + Doc-TTT (LoRA chunk=48) | OPEN, no reviews |
+| #1736 | dexhunter | 1.06549 | CaseOps bijective + GatedAttn + QuantGate | OPEN, awaits Issue #1604 ruling |
+| #1735 | AjAnubolu | 1.0429 | Pre-quant AdamW TTT 21ep | OPEN — **LIKELY ILLEGAL** (flagged by dexhunter) |
+
+**Issue #1604 (CaseOps/casefold legality)**: STILL OPEN. **No @valerio-oai comment as of Apr 20.** 10 days to deadline — if no ruling comes in the next 3–4 days, implement the next-best legal stack (#1586+#1667+#1727+#1560) rather than waiting.
+
+## New Research Papers
+
+- **In-Place TTT** (arXiv:2604.06169, Apr 7, 2026) — NTP-aligned loss on MLP final projection. Score-first compatible. Already tracked since Session 14. No new parameter-golf PRs using it yet; low priority.
+- **Newton-Muon** (arXiv:2604.01472, Apr 1, 2026) — Right-preconditioning via input second moment. +6% fewer iterations, +4% wall-clock vs Muon on nanoGPT. Already tracked. Verify additivity with MuonEq-R before GPU spend.
+- **No new relevant arXiv papers from Apr 17–20** — searches for TTT, quantization, and n-gram interpolation returned only pre-existing work. Field appears quiet this weekend.
+
+## HuggingFace / Community Discoveries
+
+- **PR #1749 (GDN + Full-Hessian GPTQ)** is the only architecturally novel submission today. Full-Hessian GPTQ (Cholesky error compensation) is a new quantization variant not yet in our technique table. Score at 14.03 MB artifact is promising but result is incomplete (1xH100, 28% budget). Monitor for full 8xH100 run.
+- **Community has stalled on record-breaking.** 5 new PRs today, none beat 1.0810. The "easy wins" from incremental stacking appear exhausted. Next breakthrough likely requires CaseOps ruling, a new architecture, or a novel TTT variant.
+
+## Recommended Actions (priority order)
+
+1. **IMPLEMENT PR #1586 NOW — 10 days left, this is the single most overdue action.** Per-layer GPTQ (MLP=12σ, Attn=13σ, Emb int7@15σ), MLR=0.026. Config-level change, -0.013 nats, zero legality risk. Every day not implementing this wastes headroom vs competitors who already have it.
+
+2. **STACK PR #1667 in the same run.** Attention Output Gate (12 weights × 8 heads × 11 layers = 1,056 params, init to zero) + SmearGate (width=12). Combined expected ~-0.019 nats total over base.
+
+3. **ADD VarLen Attention + Doc-TTT (PR #1560 approach) next.** ~-0.007 bpb vs merged SOTA. Per-document causal masking + score-first LoRA TTT per-doc (chunk=48). dexhunter is the author; reliable technique.
+
+4. **AWAIT Issue #1604 ruling until Apr 24, then act without it.** If @valerio-oai rules CaseOps legal by Apr 24, add PR #1736 technique (CaseOps bijective + GatedAttn). If no ruling by Apr 24, proceed without CaseOps.
+
+5. **DO NOT IMPLEMENT**: Pre-quant TTT (#1735/#1738), casefold without ruling, SLOT without explicit risk decision, any GDN PR until full 8xH100 run with corrected BPB calculation is verified.
+
+6. **WATCH PR #1749 (GDN + Full-Hessian GPTQ)** — if author runs full 8xH100 eval and corrects BPB, this could become relevant. Full-Hessian GPTQ is a new quantization technique worth tracking.
+
+---
+
+_Updated: 2026-04-20 (v15.0 — Merged SOTA 1.0810 Day 11 plateau (longest ever); 5 new PRs today, none beat SOTA; PR #731 seeds still pending; Issue #1604 still unruled; PR #1749 GDN+Full-Hessian GPTQ incomplete; primary action overdue: implement PR #1586+#1667; 10 days to deadline)_
