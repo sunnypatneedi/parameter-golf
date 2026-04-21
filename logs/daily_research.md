@@ -189,3 +189,133 @@ Rejected by @valerio-oai 2026-03-27. Train-then-score AdamW TTT 30ep on val toke
 ---
 
 _Updated: 2026-04-20 (v15.0 — Merged SOTA 1.0810 Day 11 plateau (longest ever); 5 new PRs today, none beat SOTA; PR #731 seeds still pending; Issue #1604 still unruled; PR #1749 GDN+Full-Hessian GPTQ incomplete; primary action overdue: implement PR #1586+#1667; 10 days to deadline)_
+
+---
+
+# Parameter Golf Daily Research - 2026-04-21
+
+## PR #771 STATUS: CLOSED (ILLEGAL — confirmed, no change)
+
+Rejected by @valerio-oai 2026-03-27. Train-then-score AdamW TTT 30ep on val tokens. No new comments.
+
+---
+
+## N-GRAM PR STATUS
+
+| PR | Claimed BPB | Status | Notes |
+|----|-------------|--------|-------|
+| #727 | 0.9674 | **CLOSED (ILLEGAL)** | valerio-oai: target token in hash key = leaks eval tokens |
+| #758 | 1.0465 | **OPEN (effectively dead)** | Apr 12: XOR hash key includes target token, same violation as #727 |
+| #731 | 1.0400 | **OPEN — awaiting seeds 1337 + 2024** | Reviewer "LOOKS CLEAN". Dense count + Laplace, score-first per chunk. No movement since Apr 17. **9 days to deadline — if no seeds by Apr 24, this PR is unlikely to merge.** |
+
+---
+
+## Leaderboard
+
+| | Score | Author | Date |
+|--|-------|--------|------|
+| **Merged SOTA** | **1.0810** | bigbag (PR #1493) | 2026-04-09 |
+| Best open (legal, no CaseOps) | **1.07139** | MarioPaerle (PR #1667) | |
+| Best open (CaseOps pending) | **1.06505** | romeerp (PR #1756) — new today | |
+| Best open (pre-quant TTT, likely illegal) | **1.02840** | kilojoules (PR #1758) — new today | |
+| Our PR #771 | 1.0705 | sunnypatneedi | CLOSED (illegal) |
+
+**DAY 12 PLATEAU** — no new merges since Apr 9. Longest plateau in competition history. 9 days to deadline.
+
+---
+
+## What Changed (GitHub — Apr 21, 2026)
+
+### New PRs filed today
+
+| PR | Author | BPB | Technique | Legal? |
+|----|--------|-----|-----------|--------|
+| #1758 | kilojoules | **1.02840** | PR #1738 + Pre-Quant TTT LR=1e-3 + Unfrozen (`PREQUANT_TTT_FREEZE_BLOCKS=0`) | **⚠️ LIKELY ILLEGAL** — pre-quant TTT is same adapt-then-score pattern as PR #1735/#1351/#1408/#1416. Builds on PR #1738 (alertcat) which itself builds on PR #1735. No reviews yet. |
+| #1756 | romeerp | **1.06505** | CaseOps Tokenizer + **Recurrence Depth Curriculum** + phased TTT + gated attn | ⚠️ Awaits Issue #1604 CaseOps ruling. Has reproducibility bug: @codemath3000 found `prepare_caseops_data.py` missing BOS insertion → ZeroDivisionError in phased TTT eval path (training completes via fallback, but eval crashes). Artifact ~15.985 MB. |
+| #1755 | OE-GOD | **1.07462** | SP8192 + CaseOps + Legal TTT (no pre-quant explicitly excluded) | ⚠️ Awaits Issue #1604 CaseOps ruling. Statistically significant (-0.00638 BPB vs merged SOTA, z≈22.8). |
+| #1764 | gmn0105 | — | Non-record no-looping SOTA scaffold | Non-record, ignore |
+| #1763 | gmn0105 | — | Non-record SP8192 proxy stack | Non-record, ignore |
+| #1762 | frido22 | 1.5200 | Non-record Mac mini M4 | Non-record, ignore |
+| #1760 | BrandtChristian | 1.1863 | Non-record SP8192 + pre-quant TTT | Non-record |
+| #1759 | yijieyuan | 1.07994 | Non-record: LoRA on tied embedding (1 seed) | Non-record |
+
+### Key open PRs — no status change since Apr 20
+
+| PR | Author | Val BPB | Technique | Action |
+|----|--------|---------|-----------|--------|
+| #1586 | dexhunter | **1.07493** | Per-layer GPTQ (MLP=12σ, Attn=13σ) + int7 Emb@15σ + MLR=0.026 | **IMPLEMENT NOW** — no reviews, zero legality risk |
+| #1667 | MarioPaerle | **1.07139** | Attention Output Gate (1,056 params) + SmearGate (w=12) | **STACK ON #1586** — no reviews |
+| #1560 | dexhunter | **1.07406** | VarLen Attention (per-doc masking) + Doc-TTT (LoRA chunk=48) | Add after #1586+#1667 verified |
+| #1727 | yahya010 | **1.07217** | MP-SGD TTT 4 phases (score-first per phase) | Appears legal; stackable |
+| #1736 | dexhunter | **1.06549** | CaseOps bijective + GatedAttn + QuantGate | Awaits Issue #1604 |
+
+**Issue #1604 (CaseOps/casefold legality)**: STILL OPEN. No @valerio-oai comment as of Apr 21. **Ruling deadline self-imposed: Apr 24.** If no ruling by then, proceed without CaseOps.
+
+### New technique: Recurrence Depth Curriculum (PR #1756)
+
+romeerp introduces a three-phase training schedule for depth recurrence:
+- Phase 1 (first third of training): loop depth = 1
+- Phase 2 (second third): loop depth = 3
+- Phase 3 (final third): loop depth = 4
+- Evaluation: always at depth 4
+
+Hypothesis: "teach a useful shallow refinement operator first" before requiring deeper recurrence. This is consistent with arXiv:2511.07384 (retrofitted recurrence curriculum). **If CaseOps is ruled legal and the BOS reproducibility bug is fixed, this technique is worth stacking on our base.**
+
+---
+
+## New Research Papers
+
+### arXiv:2604.12946 — Parcae: Stable Looped Language Models (Apr 16, 2026)
+**UCSD + Together AI.** Addresses instability in looped LMs caused by residual explosion (large spectral norms in injection parameters). Solution: constrain spectral norm via "negative diagonal parameterization" of injection parameters, recast as a nonlinear time-variant dynamical system.
+
+Key results:
+- 6.3% lower val perplexity vs prior looped models at same parameter count
+- Achieves quality of transformer **2× the size**
+- At 1.3B params: +2.99/+1.18 CORE/Core-Extended points vs Transformer baseline under fixed budget
+- Predicts looping and training data should scale **in tandem** (not independently)
+
+**Relevance to Parameter Golf**: Our Triple Loop architecture (layers 4-5 repeated 3×, activated at 0.35× training, from PR #1493) may suffer from residual explosion instability. Parcae's spectral norm constraint on injection parameters could stabilize our loops and allow deeper/more aggressive recurrence. Implementation complexity: moderate (add norm constraint to loop injection weights). **Watch for competition PRs implementing Parcae stabilization on the SP8192 stack.** GitHub: github.com/sandyresearch/parcae.
+
+### arXiv:2511.07384 — Teaching Pretrained LMs to Think Deeper with Retrofitted Recurrence (Nov 2025)
+Proposes curriculum over recurrence depth during training (depth increases from shallow to deep). Exactly the mechanism PR #1756 implements. Validates romeerp's approach with theoretical grounding.
+
+**Relevance**: If CaseOps is ruled legal, adopting Recurrence Depth Curriculum (depth 1→3→4 curriculum) on our own stack is a natural experiment. Expected gain: unclear standalone from depth curriculum alone; PR #1756 bundles it with CaseOps. Low priority until CaseOps ruling.
+
+### arXiv:2505.06708 — Gated Attention: Non-linearity, Sparsity, Attention-Sink-Free (NeurIPS 2025)
+Head-specific sigmoid gate after SDPA output (`g = sigmoid(Wg * x)`, multiply attention output element-wise). Key findings:
+- Up to 0.2 PPL reduction, +2 MMLU points
+- Multiplicative gating > additive gating
+- Element-wise + head-specific is optimal balance
+- Improves training stability (reduces loss spikes)
+- Gating scores are sparse (<0.5 for most heads)
+
+**Relevance**: This is the theoretical backing for PR #1667's Attention Output Gate. Confirms that our target stack element (#1667) is theoretically sound and from published NeurIPS work. Also explains *why* it works: breaks the low-rank bottleneck of consecutive Wv/Wo projections.
+
+---
+
+## HuggingFace / Community Discoveries
+
+- **Pre-quant TTT pattern continues**: PR #1758 (1.02840) is the 6th pre-quant TTT attempt (after #1351, #1408, #1416, #1423, #1735). Community keeps trying; organizers keep rejecting. Ignore.
+- **Recurrence Depth Curriculum is emerging**: PR #1756 is the first competition PR to implement it. Has a reproducibility bug (BOS missing) — watch for author fix.
+- **No new GDN attempts with corrected BPB**: PR #1749 (GDN + Full-Hessian GPTQ) from Apr 20 still awaits full 8xH100 run.
+- **Parcae architecture from Together AI** (arXiv:2604.12946) could inspire stable loop injection technique — first paper to address exactly the instability pattern our depth recurrence faces.
+
+---
+
+## Recommended Actions (priority order)
+
+1. **IMPLEMENT PR #1586 TODAY.** 9 days to deadline. Per-layer GPTQ (MLP=12σ, Attn=13σ, Emb int7@15σ), MLR=0.026. Config-level change, -0.013 nats, zero legality risk. This is critically overdue.
+
+2. **STACK PR #1667 IN THE SAME RUN.** Attention Output Gate (1,056 params, init zero) + SmearGate (w=12). Combined expected: ~-0.019 nats total over merged SOTA base. Backed by NeurIPS 2025 paper (arXiv:2505.06708).
+
+3. **ADD VarLen Attention + Doc-TTT (PR #1560 approach) in next run.** ~-0.007 bpb vs merged SOTA. Per-document causal masking + score-first LoRA TTT (chunk=48). dexhunter-authored; reliable.
+
+4. **AWAIT Issue #1604 until Apr 24 then act.** If CaseOps ruled legal before Apr 24: add bijective CaseOps from PR #1736/PR #1755 stack. If no ruling by Apr 24: submit without CaseOps. Do not wait past Apr 24 — 6 days will remain for 3-seed runs.
+
+5. **DO NOT IMPLEMENT**: Pre-quant TTT (#1758/#1735), casefold without ruling, SLOT, GDN without corrected BPB.
+
+6. **INVESTIGATE Parcae stabilization for Triple Loop**: If time permits after #1586+#1667+#1560 are in, look at whether spectral norm constraint on loop injection parameters can enable a 4th loop depth or earlier activation (currently at 0.35× training). Read github.com/sandyresearch/parcae.
+
+---
+
+_Updated: 2026-04-21 (v15.1 — Merged SOTA 1.0810 Day 12 plateau (longest ever); PR #1758 pre-quant TTT 1.02840 likely illegal; PR #1756 CaseOps+Recurrence Depth Curriculum 1.06505 awaits BOS fix + Issue #1604; PR #1755 CaseOps+Legal TTT 1.07462 awaits Issue #1604; Parcae stable looped LM paper arXiv:2604.12946 relevant to Triple Loop stability; 9 days to deadline)_

@@ -112,14 +112,17 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — NO CHANGE (confirmed Apr 19, Day 10 plateau — longest in competition history)
-**Best open legal PRs (Apr 19 update)**:
+**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — NO CHANGE (confirmed Apr 21, **Day 12 plateau** — longest in competition history)
+**Best open legal PRs (Apr 21 update)**:
+  - PR #1758 (kilojoules, **1.02840**): PR #1738 + Pre-Quant TTT LR=1e-3 + Unfrozen — **⚠️ LIKELY ILLEGAL** (pre-quant TTT, same adapt-then-score pattern as PR #1351/#1408/#1416/#1735). No reviews. Do NOT track.
   - PR #1698 (arsenis-cmd, **~~1.00995~~**): GatedDeltaNet (FLA) — **EFFECTIVELY DEAD**: BPB bug confirmed by dexhunter (double-count in `build_sentencepiece_luts`, actual ~1.189 BPB) + artifact size violation (16.47–16.60MB vs 16MB decimal limit). No organizer response; author lost GPU access. Do NOT track.
   - PR #1738 (alertcat, **1.03540**): CaseOps V15 + PR #1735 Pre-Quant TTT — **⚠️ BUILDS ON ILLEGAL PR #1735** (pre-quant AdamW TTT 21ep, flagged by dexhunter). No reviews. Score likely void once PR #1735 is rejected.
-  - PR #1736 (dexhunter, **1.06549**): CaseOps bijective tokenizer + GatedAttn + QuantGate + SP8192 — **CLEANEST new PR**, no legality flags. Await Issue #1604 CaseOps ruling. QuantGate compensates artifact overhead.
+  - PR #1756 (romeerp, **1.06505**): CaseOps + **Recurrence Depth Curriculum** (depth 1→3→4 over training thirds) + phased TTT + gated attn — NEW TODAY. ⚠️ Awaits Issue #1604 ruling. Has reproducibility bug: `prepare_caseops_data.py` missing BOS insertion → ZeroDivisionError in phased TTT eval path (@codemath3000 flagged). Training completes via fallback; eval crashes. Artifact ~15.985 MB. Watch for author fix.
+  - PR #1755 (OE-GOD, **1.07462**): SP8192 + CaseOps + Legal TTT (no pre-quant) — NEW TODAY. ⚠️ Awaits Issue #1604 CaseOps ruling. z≈22.8, p≪0.0001 vs merged SOTA.
+  - PR #1736 (dexhunter, **1.06549**): CaseOps bijective tokenizer + GatedAttn + QuantGate + SP8192 — **CLEANEST CaseOps PR**, no legality flags. Await Issue #1604 CaseOps ruling. QuantGate compensates artifact overhead.
   - PR #1693 (dexhunter, **1.05733**): Casefold V4 + AttnOutGate + SmearGate + Multi-Phase Global SGD TTT — **AWAIT CASEFOLD RULING (Issue #1604)**
   - PR #1729 (romeerp, **1.0678**): CaseOps bijective tokenizer + Tapered WD (50% at 70% training) — bijective/reversible, BPB via byte sidecar; await Issue #1604 ruling
-  - PR #1667 (MarioPaerle, **1.07139**): SmearGate + Attention Output Gate (1,056 params, 12×8×11 heads) + Legal TTT — **CLEAN, no reviews, stack on #1586**
+  - PR #1667 (MarioPaerle, **1.07139**): SmearGate + Attention Output Gate (1,056 params, 12×8×11 heads) + Legal TTT — **CLEAN, no reviews, stack on #1586**. Backed by NeurIPS 2025 arXiv:2505.06708.
   - PR #1727 (yahya010, **1.07217**): MP-SGD TTT 4 phases + QK-Gain 5.25 — **APPEARS LEGAL** (score-first per phase, explicit compliance notes); extends prior PR #1700 (3 phases); stackable
   - PR #1586 (dexhunter, **1.07493**): Per-Layer Adaptive GPTQ (MLP=12σ, Attn=13σ) + int7 Emb (15σ) + MLR=0.026 — **CLEAN, implement immediately**
   - PR #1732 (Victory963, **1.0785**): Hadamard Rotation + AWQ + Parallel Residuals — open, no reviews; new quantization approach
@@ -135,7 +138,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
   - PR #1647 (powerpratik, **1.0616**): SLOT-4 + TTT + 3-Layer Recurrence + Parallel Residuals — ⚠️ standard SLOT, no reviews
 **Best open with SLOT**: ~1.0616 val_bpb (PR #1647, powerpratik, SLOT-4) — no reviews yet
 **Best open (illegal)**: 1.0632 (PR #1517, RulinShao, Pre-Quant TTT 18ep — same ruling as #1351/#1416)
-**Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable (legal, no CaseOps): ~1.068–1.072 (legal stack #1586+#1667+#1727+#1560). With CaseOps if ruled legal: ~1.065 (PR #1736). **11 days to deadline (Apr 30).**
+**Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable (legal, no CaseOps): ~1.068–1.072 (legal stack #1586+#1667+#1727+#1560). With CaseOps if ruled legal: ~1.065 (PR #1736/#1756). **9 days to deadline (Apr 30). Issue #1604 self-imposed deadline: Apr 24 — act without ruling if no response by then.**
 
 **CRITICAL LEGALITY UPDATES**:
 - **PR #771 REJECTED (2026-03-27)** — Our AdamW TTT 30ep was train-then-score. All 30-epoch TTT results void.
@@ -220,6 +223,8 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | MUD/MomentUm Decorrelation (arXiv:2603.17970) | +20-50% throughput | WATCH — triangular Cholesky whitening; 1.3–2.6× tokens/sec vs Muon |
 | Mousse (arXiv:2603.09697) | ~-0.002 to -0.003 | WATCH — Kronecker-factored preconditioning for Muon; ~12% fewer steps |
 | Infini-gram interpolation (arXiv:2401.17377) | large but legal unclear | WATCH — suffix array ∞-gram, normalized |
+| **Parcae stable loop injection (arXiv:2604.12946)** | **~6.3% lower perplexity vs prior looped models** | **WATCH — Apr 16, 2026 (UCSD + Together AI); constrains spectral norm of loop injection via negative diagonal parameterization; prevents residual explosion in our Triple Loop; may enable depth 4 or earlier activation. GitHub: github.com/sandyresearch/parcae** |
+| **Recurrence Depth Curriculum (arXiv:2511.07384)** | **unknown standalone** | **WATCH — PR #1756 implements depth 1→3→4 over training thirds; theoretical backing confirmed; await CaseOps ruling + BOS bug fix before adopting** |
 | AdamW TTT (30 ep, train-then-score) | — | **ILLEGAL (PR #771 rejected)** |
 | N-gram hash cache | — | **ILLEGAL (normalization, Issue #1017)** |
 | LoRA TTT | **+0.004 (HURTS)** | **Abandoned** |
@@ -404,3 +409,13 @@ _Updated: 2026-04-17 (v13.0 — PR #1698 GatedDeltaNet FLA 1.00995 flagged artif
 93. **Merged SOTA plateau now 10 days (Apr 9 → Apr 19) — deadline is 11 days away.** With 8+ open PRs in 1.062–1.078 range, a merge wave is overdue. Implementing #1586 immediately is critical — every day without it is wasted headroom.
 
 _Updated: 2026-04-19 (v14.0 — PR #1698 GDN effectively dead (BPB bug ~1.189 + artifact violation); CaseOps bijective tokenizer new community technique (#1729/#1736/#1738); PR #1735 pre-quant TTT flagged illegal; PR #1727 MP-SGD TTT 4-phase appears legal at 1.07217; merged SOTA 1.0810 Day 10; 11 days remaining)_
+
+### Session 18 (2026-04-21)
+94. **Pre-quant TTT pattern (PR #1758, 1.02840) is the 6th attempt — still illegal.** kilojoules tuned PR #1738's pre-quant TTT with LR=1e-3 and unfrozen blocks to reach 1.02840. No reviews filed; no organizer response. Same adapt-then-score violation as PR #1351/#1408/#1416/#1423/#1735. The community keeps submitting; organizers keep rejecting. Do not track.
+95. **Recurrence Depth Curriculum (PR #1756, romeerp, 1.06505) is a new technique with theoretical backing.** Three-phase training schedule: depth 1 (first third) → depth 3 (second third) → depth 4 (final third), eval fixed at depth 4. Grounded in arXiv:2511.07384 (retrofitted recurrence curriculum). Two issues: (a) awaits Issue #1604 CaseOps ruling; (b) `prepare_caseops_data.py` missing BOS insertion causes ZeroDivisionError in phased TTT eval path (@codemath3000 flagged Apr 21). Watch for fix. If CaseOps ruled legal and bug fixed, this is a strong stack candidate.
+96. **Parcae (arXiv:2604.12946, UCSD + Together AI, Apr 16) directly addresses our Triple Loop instability.** Looped models suffer residual explosion from large spectral norms in injection parameters. Parcae constrains spectral norm via negative diagonal parameterization, achieving quality of a transformer **2× the size** at equal parameter count. Our PR #1493 Triple Loop (layers 4-5 × 3, activated at 0.35×) may be leaving performance on the table due to this same instability. If time permits after #1586+#1667+#1560 are validated, investigate adding Parcae-style spectral norm constraint on loop injection weights. GitHub: github.com/sandyresearch/parcae.
+97. **Attention Output Gate (PR #1667) is backed by NeurIPS 2025 research (arXiv:2505.06708).** Head-specific sigmoid SDPA output gate breaks the low-rank bottleneck of consecutive Wv/Wo projections, yielding up to 0.2 PPL reduction. Multiplicative form (as in PR #1667) is optimal. Confirms our implementation target is theoretically sound. Implement with #1586.
+98. **Issue #1604 (CaseOps/casefold ruling) has been open 8 days with no @valerio-oai response.** Self-impose a deadline: if no ruling by Apr 24 (6 days before competition close), proceed with the clean legal stack (#1586+#1667+#1560+#1727) rather than waiting. CaseOps has a stronger legal argument than casefold (bijective, lossless, BPB on original bytes), but the clock is running.
+99. **Merged SOTA Day 12 plateau is now confirmed longest in competition history.** No merges since Apr 9. The 8+ open PRs between 1.062–1.078 remain unreviewed. The organizers may be reviewing multiple PRs in batch. Expect a wave when rulings come (especially Issue #1604). Check leaderboard at the start of every session.
+
+_Updated: 2026-04-21 (v15.1 — merged SOTA 1.0810 Day 12; PR #1758 pre-quant TTT 1.02840 likely illegal; PR #1756 CaseOps+Recurrence Depth Curriculum 1.06505 has BOS bug + Issue #1604 pending; PR #1755 CaseOps+Legal TTT 1.07462 pending Issue #1604; Parcae arXiv:2604.12946 relevant to Triple Loop stability; Attention Output Gate backed by arXiv:2505.06708; Issue #1604 self-deadline Apr 24; 9 days remaining)_
