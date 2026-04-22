@@ -319,3 +319,150 @@ Head-specific sigmoid gate after SDPA output (`g = sigmoid(Wg * x)`, multiply at
 ---
 
 _Updated: 2026-04-21 (v15.1 — Merged SOTA 1.0810 Day 12 plateau (longest ever); PR #1758 pre-quant TTT 1.02840 likely illegal; PR #1756 CaseOps+Recurrence Depth Curriculum 1.06505 awaits BOS fix + Issue #1604; PR #1755 CaseOps+Legal TTT 1.07462 awaits Issue #1604; Parcae stable looped LM paper arXiv:2604.12946 relevant to Triple Loop stability; 9 days to deadline)_
+
+---
+
+# Parameter Golf Daily Research - 2026-04-22
+
+## PR #771 STATUS: CLOSED (ILLEGAL — no change)
+
+Rejected by @valerio-oai 2026-03-27. Train-then-score AdamW TTT 30ep on val tokens. No new comments.
+
+---
+
+## N-GRAM PR STATUS
+
+| PR | Claimed BPB | Status | Notes |
+|----|-------------|--------|-------|
+| #727 | 0.9674 | **CLOSED (ILLEGAL)** | valerio-oai: target token in hash key = leaks eval tokens |
+| #758 | 1.0465 | **OPEN (effectively dead)** | XOR hash key includes target token, same violation as #727. No author response. |
+| #731 | 1.0400 | **OPEN — awaiting seeds 1337 + 2024** | "LOOKS CLEAN" review. Dense count + Laplace, score-first per chunk. No movement. **8 days to deadline — seed confirmation unlikely.** |
+
+---
+
+## Leaderboard
+
+| | Score | Author | Date |
+|--|-------|--------|------|
+| **Merged SOTA** | **1.0810** | bigbag (PR #1493) | 2026-04-09 |
+| Best open (CaseOps, dexhunter) | **1.06453** | dexhunter (PR #1769) — new today | |
+| Best open (CaseOps, bigbag) | **1.06513** | bigbag (PR #1771) — new today | |
+| Best open (legal, no CaseOps) | **1.07139** | MarioPaerle (PR #1667) | |
+| Our PR #771 | 1.0705 | sunnypatneedi | CLOSED (illegal) |
+
+**DAY 13 PLATEAU** — no merges since Apr 9. 8 days to deadline (Apr 30).
+
+---
+
+## What Changed (GitHub — Apr 22, 2026)
+
+### CRITICAL: bigbag filed PR #1771 with CaseOps at 1.06513
+
+**This is the single most important signal today.** bigbag (the current merged SOTA holder, PR #1493) submitted a new PR using the CaseOps bijective tokenizer — before Issue #1604 has been ruled on. This means the current SOTA author is explicitly betting that CaseOps will be ruled legal (or is willing to accept the risk).
+
+**PR #1771 (bigbag, 1.06513, 3-seed std 0.00055)**:
+- SP8192 + CaseOps bijective tokenizer (TITLE/ALLCAPS/CAPNEXT/ESC control tokens)
+- Recurrence Depth Curriculum: depth 1→3→4 over three training phases, eval at depth 4
+- SmearGate (per-layer smoothing gate)
+- GatedAttn + QuantGate (full-dim attention gate with int8 passthrough)
+- LoRA-TTT improvements: alpha=144, warm-start A initialization, WD=1.0, AdamW lr=1e-4
+- Phased Score-First TTT over 2000 prefix documents
+- Artifact: ~15.98 MB on 8xH100 SXM
+- No reviews yet. No legality flags beyond Issue #1604 pending for CaseOps.
+
+### dexhunter improved CaseOps stack: PR #1769 at 1.06453
+
+**PR #1769 (dexhunter, 1.06453, 5-seed mean, std 0.00068)**:
+- Builds on PR #1736 (CaseOps + GatedAttn + QuantGate + Loop4-5 + PhasedTTT)
+- **Single change**: MLP `clip_sigmas` 10.0 → 12.0 (exactly the per-layer adaptive GPTQ change from PR #1586)
+- dexhunter explicitly integrated the PR #1586 technique into his CaseOps stack
+- -0.00096 BPB vs #1736. Tighter MLP quantization reduces outlier-column tail mass at int6 with 4× MLP width.
+- 7-seed mean: 1.06477 (std 0.00069). Highly statistically robust.
+- No reviews yet.
+
+### Other new PRs (Apr 22)
+
+| PR | Author | BPB | Technique | Notes |
+|----|--------|-----|-----------|-------|
+| #1776 | anmarhindi | 1.08083 | SP8192 + ParResid + 3LayerLoop + QK5.25 + LegalTTT | SOTA stack replica, no new technique |
+| #1775 | dentity007 | 1.07285 | SP8192 + No Gates + Multi-Phase Global SGD TTT | Appears legal; compatible with MP-SGD TTT approach |
+| #1774 | aruniyer | 1.0981 | 12L Shared-Specific Attention (d=16) + MLP 4.5x | Non-competitive vs SOTA; novel shared-specific attn idea |
+| #1770 | liujshi | 1.0796 | SP8192 + 3-layer recurrence + parallel residuals + QK5.25 | SOTA stack replica, no new technique |
+| #1767 | renqianluo | 1.07209 | Alpha=144 LoRA + warm-start A + WD 1.0 | Same LoRA-TTT improvements as in PR #1771; appears legal |
+| #1765 | renqianluo | 1.07266 | Alpha-scaled LoRA + warm-start A + WD 1.0 | Earlier version of same technique, slightly worse |
+
+### LoRA-TTT warm-start A + alpha=144 is a new legal TTT improvement
+
+Both renqianluo (PRs #1767/1765) and bigbag (PR #1771) independently use the same LoRA-TTT upgrade pattern:
+- **alpha=144** (vs typical alpha=rank): larger effective learning rate scale for LoRA updates during TTT
+- **warm-start A**: initialize LoRA A matrix from training-time weights rather than random/zero
+- **WD=1.0**: high weight decay during AdamW TTT prevents catastrophic forgetting across documents
+- renqianluo reaches 1.07209 BPB (vs merged SOTA 1.08100) with this technique alone on a clean base. This is a +0.009 improvement from TTT variant change alone and appears fully legal (score-first, per-document, AdamW).
+
+**This is stackable with our planned #1586+#1667 stack and should be added to our TTT implementation.**
+
+### Key open PRs — status summary
+
+| PR | Author | Val BPB | Technique | Action |
+|----|--------|---------|-----------|--------|
+| #1586 | dexhunter | **1.07493** | Per-layer GPTQ (MLP=12σ, Attn=13σ) + int7 Emb@15σ + MLR=0.026 | **IMPLEMENT NOW** |
+| #1667 | MarioPaerle | **1.07139** | Attention Output Gate (1,056 params) + SmearGate (w=12) | **STACK ON #1586** |
+| #1727 | yahya010 | **1.07217** | MP-SGD TTT 4 phases (score-first per phase) | Appears legal; stackable |
+| #1767 | renqianluo | **1.07209** | LoRA-TTT warm-start A + alpha=144 + WD=1.0 | Legal TTT improvement; stack in TTT phase |
+| #1560 | dexhunter | **1.07406** | VarLen Attention (per-doc masking) + Doc-TTT (LoRA chunk=48) | Add after #1586+#1667 |
+| #1769 | dexhunter | **1.06453** | CaseOps + GatedAttn + QuantGate + MLP 12σ | Awaits Issue #1604 — **highest-quality CaseOps PR** |
+| #1771 | bigbag | **1.06513** | CaseOps + Depth Curriculum + SmearGate + LoRA-TTT improvements | Awaits Issue #1604 |
+
+**Issue #1604 (CaseOps legality)**: STILL OPEN. No @valerio-oai comment as of Apr 22. **Self-imposed deadline: Apr 24 (2 days).** bigbag's PR #1771 dramatically increases the signal strength that CaseOps will pass — begin CaseOps implementation prep now (do not wait for the ruling to start coding).
+
+---
+
+## New Research Papers
+
+### arXiv:2604.15259 — Stability and Generalization in Looped Transformers (Apr 2026) ★ NEW
+
+Introduces a fixed-point framework analyzing looped architectures along three axes:
+1. **Reachability**: whether the loop converges
+2. **Input-dependence**: whether the fixed point varies with input
+3. **Geometry**: the shape of the attractor
+
+Key proof: "looped networks *without* recall have only countable fixed points and cannot achieve strong input-dependence at any spectral regime. Recall combined with outer normalization produces a stable, input-dependent regime."
+
+**Relevance to Parameter Golf**: Our Triple Loop (layers 4-5 × 3 with parallel residuals) already uses a form of recall via the residual stream. The "outer normalization" finding is actionable: adding a LayerNorm or RMSNorm at the output of each loop iteration may stabilize our recurrence and allow deeper loops (4×) or earlier activation (< 0.35× training). Complements Parcae (arXiv:2604.12946) in providing theoretical grounding. Implementation: 1–3 lines.
+
+### arXiv:2604.12946 — Parcae: Stable Looped LMs (Apr 16, 2026) — already tracked
+
+Confirmed: spectral norm constraint on loop injection parameters achieves 6.3% lower val perplexity vs uncontrolled looped models. PR #1756 (romeerp) uses depth curriculum (1→3→4) but does NOT use Parcae stabilization — potential upside if combined.
+
+### arXiv:2603.21676 — Depth-Recurrent Transformers for Compositional Generalization
+
+Key challenge confirmed: "naïvely unrolling = exploding/vanishing gradients and representation collapse." This is what our early loop activation (0.35× training) avoids — but a proper spectral norm constraint from Parcae/arXiv:2604.15259 could make earlier/deeper loops safe.
+
+---
+
+## HuggingFace / Community Discoveries
+
+- **bigbag going CaseOps** is the single clearest community signal. The current SOTA author staking his next PR on CaseOps before a ruling = high-conviction bet on legality.
+- **Warm-start A + alpha=144 LoRA-TTT** is converging as a community technique (PR #1767 by renqianluo, PR #1771 by bigbag). Two independent authors reaching the same configuration = likely genuinely better than standard LoRA-TTT.
+- **No new GDN/FLA attempts with corrected BPB.** The FLA community appears to have run out of options after PR #1698's bug was exposed.
+- **PR #731 Hedge Mixer seeds still missing.** 8 days to deadline — the author may not have GPU access.
+
+---
+
+## Recommended Actions (priority order)
+
+1. **IMPLEMENT PR #1586 + PR #1667 NOW — 8 days to deadline.** Per-layer GPTQ (MLP=12σ, Attn=13σ) + int7 Emb + MLR=0.026 + Attention Output Gate (1,056 params, init zero) + SmearGate (w=12). Combined expected: ~-0.019 nats below merged SOTA. Zero legality risk. This has been the #1 action for 5 consecutive days. Every day of delay costs us 3-seed capacity for final submission.
+
+2. **ADD LoRA-TTT warm-start A + alpha=144 + WD=1.0 to our TTT phase.** renqianluo (PR #1767) and bigbag (PR #1771) both use this. Appears legal (score-first, AdamW, per-document). Stacks on top of any base. Expected: ~+0.009 bpb improvement from TTT variant change alone.
+
+3. **BEGIN CaseOps implementation prep — don't wait for Issue #1604 ruling.** bigbag's PR #1771 raises the probability of CaseOps approval significantly. Start preparing the bijective case-factoring tokenizer (TITLE/ALLCAPS/CAPNEXT/ESC control tokens) so it can be plugged in immediately when/if ruled legal. Apr 24 self-deadline: if no ruling, submit without it.
+
+4. **ADD VarLen Attention + Doc-TTT (PR #1560).** ~-0.007 bpb vs merged SOTA. Per-document causal masking + score-first LoRA TTT per-doc (chunk=48). Add in the run after #1586+#1667 is confirmed working.
+
+5. **DO NOT IMPLEMENT**: Pre-quant TTT (PR #1758/#1735), SLOT (PR #1647), any GDN without corrected BPB + artifact size.
+
+6. **ADD outer normalization to loop injection** (arXiv:2604.15259). If time permits after #1586+#1667+#1560+TTT are validated, add a LayerNorm/RMSNorm at the output of each loop iteration. May enable 4× depth or earlier activation with no parameter cost beyond the norm params.
+
+---
+
+_Updated: 2026-04-22 (v16.0 — Merged SOTA 1.0810 Day 13 plateau; **CRITICAL: bigbag filed CaseOps PR #1771 at 1.06513 — strongest signal CaseOps will pass**; dexhunter PR #1769 at 1.06453 (new best); LoRA-TTT warm-start A + alpha=144 + WD=1.0 emerging as legal TTT improvement; arXiv:2604.15259 looped transformer stability paper — outer normalization enables deeper loops; 8 days to deadline)_
