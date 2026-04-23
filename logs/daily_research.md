@@ -466,3 +466,143 @@ Key challenge confirmed: "naïvely unrolling = exploding/vanishing gradients and
 ---
 
 _Updated: 2026-04-22 (v16.0 — Merged SOTA 1.0810 Day 13 plateau; **CRITICAL: bigbag filed CaseOps PR #1771 at 1.06513 — strongest signal CaseOps will pass**; dexhunter PR #1769 at 1.06453 (new best); LoRA-TTT warm-start A + alpha=144 + WD=1.0 emerging as legal TTT improvement; arXiv:2604.15259 looped transformer stability paper — outer normalization enables deeper loops; 8 days to deadline)_
+
+---
+
+# Parameter Golf Daily Research - 2026-04-23
+
+## PR #771 STATUS: CLOSED (ILLEGAL — no change)
+
+Rejected by @valerio-oai 2026-03-27. Train-then-score AdamW TTT 30ep on val tokens. No new comments.
+
+---
+
+## N-GRAM PR STATUS
+
+| PR | Claimed BPB | Status | Notes |
+|----|-------------|--------|-------|
+| #727 | 0.9674 | **CLOSED (ILLEGAL)** | valerio-oai: target token in hash key = leaks eval tokens |
+| #758 | 1.0465 | **OPEN (effectively dead)** | XOR hash key includes target token; MatoTeziTanka flagged Apr 12. Recommendation: close under same ruling as #727 family. No author response. |
+| #731 | 1.0400 | **OPEN — awaiting seeds 1337 + 2024** | "LOOKS CLEAN" review. Dense count + Laplace, score-first per chunk. No movement. **7 days to deadline — seed confirmation highly unlikely; treat PR as abandoned.** |
+
+---
+
+## Leaderboard
+
+| | Score | Author | Date |
+|--|-------|--------|------|
+| **Merged SOTA** | **1.0810** | bigbag (PR #1493) | 2026-04-09 |
+| Best open (legal, no CaseOps) | **1.06991** | miaoyuxun (PR #1790) — **new today** | |
+| Best open (CaseOps, dexhunter) | **1.06453** | dexhunter (PR #1769) | |
+| Best open (CaseOps, bigbag) | **1.06513** | bigbag (PR #1771) | |
+| Our PR #771 | 1.0705 | sunnypatneedi | CLOSED (illegal) |
+
+**DAY 14 PLATEAU** — confirmed via `git log upstream/main`. Last merge was PR #1511 (automated leaderboard README update), last true record merge was PR #1493 on Apr 9. **7 days to deadline (Apr 30).** Longest plateau in competition history.
+
+---
+
+## What Changed (GitHub — Apr 22–23, 2026)
+
+### New PRs filed (Apr 21–23)
+
+| PR | Author | BPB | Technique | Legal? | Notes |
+|----|--------|-----|-----------|--------|-------|
+| #1791 | genji0306 | **1.0339** | K_KVShare_Wider FLA (GDN + KV sharing stride=2), no TTT/SLOT/n-gram | ⚠️ Under review | Author provided side-by-side code refuting BPB double-count. Artifact 15.88 MB. Needs organizer review — all prior GDN PRs had BPB bugs despite author denials. **Watch closely.** |
+| #1790 | miaoyuxun | **1.06991** | SP8192 + SmearGate + AttnOutGate(w=24) + LoRA-TTT α=144 + warm-start A + WD=1.0 + Phased TTT | **APPEARS LEGAL** | No reviews. Validates #1667+improved-TTT stack. New best **legal no-CaseOps** open PR. |
+| #1787 | nprime06 | **1.06378** | CaseOps (PR #1736) + Polar Express NS + MIN_LR floor + Sparse Attn Gate + Fused CE | ⚠️ Awaits Issue #1604 | Contains 2 new legal CaseOps-independent techniques (see below). |
+| #1786 | sachinnchaudhary | — | Recurrence schedule sweep (ablation) | Ablation only | |
+| #1785 | OE-GOD | **1.01925** | SP4096 + byte-level PPM-D adaptive-λ mixture | **⚠️ UNVERIFIED** — multiple concerns flagged by dexhunter | See warning below. |
+| #1788 | marinabar | ~1.12 | QAT cooldown + INT4 MLP + NuMuon-lite | Non-competitive | |
+
+### ⚠️ PR #1785 (1.01925) — extraordinary claim, DO NOT TRACK
+
+OE-GOD combines neural LM with online byte-level PPM-D (order-5) via adaptive-λ gating. dexhunter flagged five concerns:
+1. Validation used only the **first 5M tokens** (not full val set)
+2. **Neural-only baseline 1.144 BPB** — too weak vs expected ~1.08 for SP4096 stack (underfit model)
+3. **Online PPM counter updates** may constitute illegal TTT (Issue #1017 Condition 3 — trainable component updated at eval)
+4. **BPB definition unclear**: byte-level scoring ≠ canonical token-level BPB formula
+5. Scoring model vs post-hoc mapping ambiguity (Condition 2)
+
+Do not implement. Await organizer ruling.
+
+### PR #1791 (1.0339) — GDN FLA, monitor carefully
+
+genji0306 directly refuted the BPB double-count concern with code comparison, showing the `▁` stripping + boundary credit is applied exactly once. Artifact 15.88 MB (clean). No TTT, no SLOT, no n-gram — pure architecture. If BPB is genuinely correct this is the biggest non-casefold open PR. But every prior GDN BPB bug was also "denied" by authors before dexhunter proved the bug. **Wait for organizer or dexhunter independent verification before investing.**
+
+### New legal techniques from PR #1787 (CaseOps-independent)
+
+**Polar Express Newton-Schulz** (applies to all runs):
+- Replaces fixed Muon NS coefficients `[(9.0/8.0, -7.0/8.0), (9.0/8.0, -7.0/8.0), ...]` with 5 distinct per-iteration tuned tuples in `zeropower_via_newtonschulz5`
+- Better approximation to the exact Newton-Schulz iteration (each step uses optimal coefficients for that convergence phase)
+- Zero artifact size change, ~3 lines. Appears fully legal. nprime06 attributes +0.00171 BPB improvement to this combined with MIN_LR.
+
+**MIN_LR warmdown floor** (applies to all runs):
+- Sets LR floor during warmdown to `0.1 × peak_LR` instead of zero
+- Enables productive gradient updates during the final ~25% of training
+- Zero artifact size change, 1 line. Fully legal.
+
+Both techniques are CaseOps-independent and should be considered for our stack.
+
+### PR #1790 — new clean reference point for legal stack
+
+miaoyuxun's PR #1790 (1.06991, 3-seed std 0.00061) validates that:
+- PR #1667 (AttnOutGate w=24 + SmearGate) stacks with
+- LoRA-TTT alpha=144 + warm-start A + WD=1.0 (from PR #1767/1771) stacks with
+- Phased global SGD TTT (PR #1700 style)
+
+...to reach **1.06991 without CaseOps**. This is the new floor for "legal no-CaseOps" stack. Our planned #1586+#1667+TTT improvements should reach ~1.065–1.068 if we add the per-layer GPTQ (#1586) that miaoyuxun does not appear to include.
+
+### Issue #1604 (CaseOps ruling)
+
+**STILL OPEN. No @valerio-oai comment as of Apr 23.** Issue has been open 10 days. Self-imposed deadline is **tomorrow, Apr 24**. Begin clean legal stack implementation immediately regardless of ruling outcome.
+
+---
+
+## New Research Papers
+
+### arXiv:2604.11791 — A Mechanistic Analysis of Looped Reasoning Language Models (Apr 2026) ★ NEW
+
+Key finding: each transformer layer in a recurrent cycle converges to a distinct fixed point; the recurrent block follows a consistent cyclic trajectory in latent space.
+
+**Relevance to Parameter Golf**: Confirms that our Triple Loop (layers 4-5 × 3) should learn distinct representations per iteration rather than collapsing. The cyclic trajectory finding is consistent with arXiv:2604.15259's "recall" mechanism that enables stable outer normalization. Together these papers provide strong theoretical backing for our architecture — the cyclic trajectory IS stable if outer normalization is added. Implementation: add RMSNorm at each loop output (~1–3 lines per iteration).
+
+### Already-tracked papers with new competition confirmations
+
+- **arXiv:2511.07384** (Retrofitted Recurrence Curriculum): PR #1756 and PR #1771 both implement. Now confirmed viable by bigbag.
+- **arXiv:2505.06708** (Gated Attention, NeurIPS 2025): PR #1667 and PR #1790 both use. Confirmed by two independent authors.
+- **arXiv:2604.12946** (Parcae): No competition PR yet. Still unimplemented in the competition field.
+- **arXiv:2604.15259** (Outer normalization for stable loops): No competition PR yet. 1–3 line implementation opportunity.
+
+### No new transformative papers from Apr 22–23
+
+TTT paper searches returned only pre-existing work (arXiv:2512.23675 E2E-TTT, arXiv:2505.23884 LaCT). Quantization searches returned no new competition-relevant techniques beyond what is tracked. Field quiet on Apr 22–23.
+
+---
+
+## HuggingFace / Community Discoveries
+
+- **PR #1790 (miaoyuxun)** is the clearest evidence that our planned stack works: someone else has already combined #1667+improved-TTT and hit 1.06991. Our version (adding #1586 per-layer GPTQ) should go lower.
+- **Polar Express NS is new community technique** appearing in PR #1787. First PR to tune per-iteration NS coefficients independently. If it contributes even -0.001 bpb standalone it's worth the 3-line change.
+- **MIN_LR warmdown floor** also new in PR #1787. The "don't decay to zero" insight is simple and has precedent in optimizer literature (warm restart cycles). Worth testing.
+- **GDN FLA field**: PR #1791 is the first GDN PR to actively refute the BPB bug claim with code. If organizers confirm it's clean, the GDN architecture becomes live again. Three previous GDN PRs (#1576, #1687, #1698) all had genuine bugs — author denials did not hold up.
+- **PR #731 (Hedge Mixer)**: Dead. 7 days to deadline, no seed updates since April 12. Author likely has no GPU access.
+
+---
+
+## Recommended Actions (priority order)
+
+1. **IMPLEMENT #1586+#1667+LoRA-TTT improvements TODAY** — 7 days to deadline. This is day 7 of this being the top action. The combination is now externally validated by PR #1790 (miaoyuxun, 1.06991). Add per-layer GPTQ (#1586) on top: expected target ~1.065–1.068. Need 3 seeds for a valid submission.
+
+2. **ADD Polar Express NS + MIN_LR floor** (from PR #1787, CaseOps-independent) — these are 1–4 line changes with zero legality risk. Include in the same run as action 1.
+
+3. **ADD VarLen Attention + Doc-TTT (PR #1560)** in the following run. ~-0.007 bpb. Per-document causal masking + score-first LoRA TTT per-doc (chunk=48).
+
+4. **Issue #1604 deadline is TOMORROW (Apr 24)** — if no @valerio-oai ruling, proceed without CaseOps. If ruled legal, add bijective CaseOps from PR #1769 (dexhunter's clean implementation) — target drops to ~1.063.
+
+5. **Monitor PR #1791 (GDN FLA, 1.0339)** for organizer response. If BPB confirmed clean, this is a massive architectural shift worth pursuing — but do NOT start implementation until independently verified.
+
+6. **DO NOT IMPLEMENT**: Pre-quant TTT (#1758/#1735), SLOT, any GDN without organizer BPB verification, PR #1785 PPM mixture (multiple concerns pending ruling).
+
+---
+
+_Updated: 2026-04-23 (v17.0 — Merged SOTA 1.0810 Day 14 plateau confirmed (git log); PR #1790 miaoyuxun 1.06991 new best legal no-CaseOps (validates #1667+TTT stack); PR #1791 genji0306 GDN FLA 1.0339 author refuted BPB bug — await organizer; PR #1785 OE-GOD PPM 1.01925 unverified (5 dexhunter concerns); Polar Express NS + MIN_LR floor new legal techniques from PR #1787; Issue #1604 deadline tomorrow Apr 24; 7 days to deadline)_
