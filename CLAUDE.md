@@ -112,34 +112,40 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — NO CHANGE (confirmed Apr 22, **Day 13 plateau** — longest in competition history)
-**Best open legal PRs (Apr 22 update)**:
-  - PR #1771 (bigbag, **1.06513**): CaseOps + Recurrence Depth Curriculum (1→3→4) + SmearGate + GatedAttn + LoRA-TTT (alpha=144, warm-start A, WD=1.0) — **⚠️ CRITICAL SIGNAL: current SOTA holder is betting on CaseOps before ruling**. 3-seed std 0.00055. Awaits Issue #1604. Begin implementation prep NOW.
-  - PR #1769 (dexhunter, **1.06453**): CaseOps + GatedAttn + QuantGate + Loop4-5 + MLP clip_sigmas 10→12 — **new best CaseOps PR**, 5-seed mean std 0.00068. Awaits Issue #1604.
-  - PR #1758 (kilojoules, **1.02840**): PR #1738 + Pre-Quant TTT LR=1e-3 + Unfrozen — **⚠️ LIKELY ILLEGAL** (pre-quant TTT). Do NOT track.
-  - PR #1698 (arsenis-cmd, **~~1.00995~~**): GatedDeltaNet (FLA) — **EFFECTIVELY DEAD**: BPB bug (actual ~1.189 BPB) + artifact size violation. Do NOT track.
+**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — NO CHANGE (confirmed Apr 24, **Day 15 plateau** — longest in competition history). NOTE: Scylla 0.9485 record folder was committed to `track_10min_16mb/` on Apr 23 (PR #1184, icryo) but README not updated and score is DISPUTED (PR #1271 corrects to ~1.1289 bpb via byte accounting fix). Treat merged SOTA as 1.0810 until README is updated.
+**Best open legal PRs (Apr 24 update)**:
+  - PR #1795 (OE-GOD, **1.01252**): SP4096 + byte-level PPM order-4 adaptive-λ mixture — score-first (PPM updates after scoring each byte); initial gate legality concern **FIXED** (gate frozen before observing byte). Extraordinary score — **WATCH CLOSELY for organizer ruling before implementing**.
+  - PR #1797 (dexhunter, **1.06157**): PR #1787 base + SmearGate + LQER Asym — **dexhunter's new best, no flags**. Stack on this.
+  - PR #1801 (leon2k2k2k, **1.06287**): PR #1787 base + Sparse Gate + Updated Frozen Carry — no flags.
+  - PR #1787 (nprime06, **1.06335**): PR #1736 + **Polar Express NS** + MIN_LR=0.10 + Sparse Attn Gate + Fused CE + TTT alpha=144/warm-start A/WD=1.0 — **NEW BEST CLEAN BASE PR**. No legality flags. Polar Express NS = ICLR 2026 paper (arXiv:2505.16932).
+  - PR #1771 (bigbag, **1.06513**): CaseOps + Recurrence Depth Curriculum (1→3→4) + SmearGate + GatedAttn + LoRA-TTT (alpha=144, warm-start A, WD=1.0) — ⚠️ Awaits Issue #1604.
+  - PR #1769 (dexhunter, **1.06453**): CaseOps + GatedAttn + QuantGate + Loop4-5 + MLP clip_sigmas 10→12 — ⚠️ Awaits Issue #1604.
+  - PR #1802 (aamodbhatt, **1.0771**): SP8192 + Polar Express NS + Multi-Phase Global TTT — no flags, stackable.
+  - PR #1758 (kilojoules, **1.02840**): PR #1738 + Pre-Quant TTT LR=1e-3 + Unfrozen — **⚠️ ILLEGAL** (pre-quant TTT). Do NOT track.
+  - PR #1698 (arsenis-cmd, **~~1.00995~~**): GatedDeltaNet (FLA) — **DEAD**: BPB bug + artifact violation. Do NOT track.
   - PR #1738 (alertcat, **1.03540**): CaseOps V15 + PR #1735 Pre-Quant TTT — **⚠️ BUILDS ON ILLEGAL PR #1735**. Do NOT track.
-  - PR #1756 (romeerp, **1.06505**): CaseOps + Recurrence Depth Curriculum (depth 1→3→4) + phased TTT + gated attn — ⚠️ Awaits Issue #1604. BOS reproducibility bug (ZeroDivisionError in eval path). Watch for fix.
+  - PR #1756 (romeerp, **1.06505**): CaseOps + Recurrence Depth Curriculum — ⚠️ Awaits Issue #1604 + BOS bug.
   - PR #1755 (OE-GOD, **1.07462**): SP8192 + CaseOps + Legal TTT — ⚠️ Awaits Issue #1604.
-  - PR #1736 (dexhunter, **1.06549**): CaseOps bijective tokenizer + GatedAttn + QuantGate + SP8192 — superseded by PR #1769. Await Issue #1604.
-  - PR #1693 (dexhunter, **1.05733**): Casefold V4 + AttnOutGate + SmearGate + Multi-Phase SGD TTT — **AWAIT CASEFOLD RULING (Issue #1604)**
-  - PR #1767 (renqianluo, **1.07209**): LoRA-TTT warm-start A + alpha=144 + WD=1.0 — **APPEARS LEGAL** (score-first, per-document, AdamW). New legal TTT improvement. Stack with #1586+#1667.
-  - PR #1775 (dentity007, **1.07285**): No Gates + Multi-Phase Global SGD TTT — appears legal; stackable
-  - PR #1667 (MarioPaerle, **1.07139**): SmearGate + Attention Output Gate (1,056 params, 12×8×11 heads) + Legal TTT — **CLEAN, no reviews, stack on #1586**. Backed by NeurIPS 2025 arXiv:2505.06708.
-  - PR #1727 (yahya010, **1.07217**): MP-SGD TTT 4 phases + QK-Gain 5.25 — **APPEARS LEGAL** (score-first per phase); stackable
-  - PR #1586 (dexhunter, **1.07493**): Per-Layer Adaptive GPTQ (MLP=12σ, Attn=13σ) + int7 Emb (15σ) + MLR=0.026 — **CLEAN, implement immediately**
-  - PR #1560 (dexhunter, **1.07406**): VarLen Attention + Doc-TTT — appears legal (no reviews yet)
-  - PR #1584 (codemath3000, **1.0752**): Systems-only (fused Muon + batched EMA + loader prealloc), ~20 extra steps
-  - PR #1555 (andrewbaggio1, **1.07636**): TMA Megakernel + Improved Parallel Residuals + Tap-In min_match=1
-  - PR #1540 (aryanbhosale, **1.0777**): VarLen Attention + Doc-Independent LoRA TTT rank-96 + Triton TMA — appears legal
-  - PR #1735 (AjAnubolu, **1.0429**): Pre-Quant AdamW TTT 21ep — **⚠️ LIKELY ILLEGAL** (flagged by dexhunter)
-  - PR #1576 (joshkmartinez, **~~1.01671~~**): GDN-Hybrid — **BPB BUG confirmed**. Do NOT track.
-  - PR #1687 (resouer, **~~1.04090~~**): K_KVShare_Wider FLA — **CLOSED: BPB BUG**. Do NOT track.
-  - PR #1585 (codemath3000, **1.0639**): Casefold Tokenizer — **LEGALITY DEBATED** (Issue #1604); await ruling
-  - PR #1647 (powerpratik, **1.0616**): SLOT-4 + TTT + 3-Layer Recurrence + Parallel Residuals — ⚠️ standard SLOT, no reviews
+  - PR #1736 (dexhunter, **1.06549**): CaseOps + GatedAttn + QuantGate + SP8192 — superseded by PR #1769. Await Issue #1604.
+  - PR #1693 (dexhunter, **1.05733**): Casefold V4 + AttnOutGate + SmearGate + Multi-Phase SGD TTT — ⚠️ Await casefold ruling.
+  - PR #1767 (renqianluo, **1.07209**): LoRA-TTT warm-start A + alpha=144 + WD=1.0 — **LEGAL**. Stack with #1586+#1667.
+  - PR #1775 (dentity007, **1.07285**): No Gates + Multi-Phase Global SGD TTT — appears legal; stackable.
+  - PR #1667 (MarioPaerle, **1.07139**): SmearGate + Attention Output Gate (1,056 params, 12×8×11 heads) + Legal TTT — **CLEAN**. Backed by arXiv:2505.06708.
+  - PR #1727 (yahya010, **1.07217**): MP-SGD TTT 4 phases + QK-Gain 5.25 — **LEGAL** (score-first per phase); stackable.
+  - PR #1586 (dexhunter, **1.07493**): Per-Layer Adaptive GPTQ (MLP=12σ, Attn=13σ) + int7 Emb (15σ) + MLR=0.026 — **CLEAN, implement immediately**.
+  - PR #1560 (dexhunter, **1.07406**): VarLen Attention + Doc-TTT — appears legal (no reviews yet).
+  - PR #1584 (codemath3000, **1.0752**): Systems-only (fused Muon + batched EMA + loader prealloc), ~20 extra steps.
+  - PR #1555 (andrewbaggio1, **1.07636**): TMA Megakernel + Improved Parallel Residuals + Tap-In min_match=1.
+  - PR #1540 (aryanbhosale, **1.0777**): VarLen Attention + Doc-Independent LoRA TTT rank-96 + Triton TMA — appears legal.
+  - PR #1735 (AjAnubolu, **1.0429**): Pre-Quant AdamW TTT 21ep — **⚠️ ILLEGAL**. Do NOT track.
+  - PR #1576 (joshkmartinez, **~~1.01671~~**): GDN-Hybrid — **BPB BUG**. Do NOT track.
+  - PR #1687 (resouer, **~~1.04090~~**): FLA — **CLOSED: BPB BUG**. Do NOT track.
+  - PR #1585 (codemath3000, **1.0639**): Casefold Tokenizer — **LEGALITY DEBATED** (Issue #1604); await ruling.
+  - PR #1647 (powerpratik, **1.0616**): SLOT-4 + TTT + 3-Layer Recurrence + Parallel Residuals — ⚠️ standard SLOT risk.
 **Best open with SLOT**: ~1.0616 val_bpb (PR #1647, powerpratik, SLOT-4) — no reviews yet
-**Best open (illegal)**: 1.0429 (PR #1735, pre-quant TTT — flagged by dexhunter)
-**Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable (legal, no CaseOps): ~1.068–1.072 (legal stack #1586+#1667+#1727+#1560+LoRA-TTT warm-start A). With CaseOps if ruled legal: ~1.064 (PR #1769 dexhunter). **8 days to deadline (Apr 30). Issue #1604 self-imposed deadline: Apr 24 — begin CaseOps prep NOW given bigbag's PR #1771 signal.**
+**Best open (illegal)**: 1.0429 (PR #1735, pre-quant TTT)
+**Issue #1604 (CaseOps ruling)**: **SELF-DEADLINE PASSED (Apr 24) — NO @valerio-oai response in 11 days**. Proceed with clean legal stack NOW. Do not wait.
+**Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable (legal, no CaseOps): ~1.065–1.068 (clean stack #1787 base + #1586 + #1667 + #1560 + #1727 + LoRA-TTT warm-start A + Polar Express NS + MIN_LR). **6 days to deadline (Apr 30). Stop waiting — implement NOW.**
 
 **CRITICAL LEGALITY UPDATES**:
 - **PR #771 REJECTED (2026-03-27)** — Our AdamW TTT 30ep was train-then-score. All 30-epoch TTT results void.
@@ -155,23 +161,24 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 - **Casefold Tokenizer (PR #1578, #1585)**: LEGALITY DEBATED (Apr 13) — modifying validation corpus bytes via case normalization may constitute invalid benchmark manipulation. Await @valerio-oai ruling before implementing.
 - **Per-Layer Adaptive GPTQ (PR #1586)**: NO LEGALITY FLAGS — safe config change, implement immediately.
 
-**Current best-stack approach (PR #1493 base + incremental adds)**:
-1. **SP8192 vocab** — beats SP4096 by ~0.009 bpb
-2. **Triple Loop (17 virtual layers)** — layers 4-5 repeated 3×, activated at 0.35× training
-3. **Parallel Residuals (layers 7-10)** — GPT-J style
-4. **MuonEq-R optimizer** — arXiv:2603.28254
-5. **4× MLP expansion**
-6. **GPTQ Embeddings (int7@15σ) + SDClip** — **upgrade: int7 vs int8 saves 530KB** (PR #1586); saves ~4MB artifact budget
-7. **Per-Layer Adaptive GPTQ clip** — MLP=12σ, Attn=13σ (PR #1586) — **implement immediately, -0.013 nats**
-8. **QK-Gain 5.25** — up from 5.0 (PR #1493)
-9. **WD=0.095, EMA=0.9965, warmdown=0.72, MLR=0.026** — MLR upgraded from 0.022 (PR #1586)
+**Current best-stack approach (PR #1787 as new base, Apr 24 update)**:
+1. **SP8192 vocab** — beats SP4096 by ~0.009 bpb [merged SOTA]
+2. **Triple Loop (17 virtual layers)** — layers 4-5 repeated 3×, activated at 0.35× training [merged SOTA]
+3. **Parallel Residuals (layers 7-10)** — GPT-J style [merged SOTA]
+4. **MuonEq-R + Polar Express Newton-Schulz** — MuonEq-R (arXiv:2603.28254) + Polar Express adaptive NS coefficients (arXiv:2505.16932, ICLR 2026) replacing fixed 5-step NS — PR #1787
+5. **4× MLP expansion** [merged SOTA]
+6. **GPTQ Embeddings (int7@15σ) + SDClip** — PR #1586; saves ~530KB vs int8 Emb
+7. **Per-Layer Adaptive GPTQ clip** — MLP=12σ, Attn=13σ (PR #1586) — **IMPLEMENT NOW**
+8. **QK-Gain 5.25** — up from 5.0 [merged SOTA]
+9. **WD=0.095, EMA=0.9965, warmdown=0.72, MLR=0.026, MIN_LR=0.10** — MLR from PR #1586; **MIN_LR=0.10 warmdown floor from PR #1787** (prevents over-decay)
 10. **N-gram Tilt** — use PR #1437 corrected kernel only
-11. **Legal Score-First TTT (post-quant, ≤3ep)** — lr=0.005, all blocks; upgrade to alpha=144 + warm-start A + WD=1.0 (PR #1767/1771)
+11. **Legal Score-First TTT (post-quant, ≤3ep)** — lr=0.005, all blocks; upgrade to alpha=144 + warm-start A + WD=1.0 (PR #1767)
 12. **VarLen Attention (per-document causal masking)** — PR #1560, ~-0.007 bpb — **add next**
 13. **Doc-TTT (per-document score-first TTT)** — PR #1560, chunk size=48, Muon 0.97 — **add next**
-14. **Attention Output Gate + SmearGate (PR #1667)** — 1,056 extra params (12×8×11 heads); multiplicative per-head gate init to zero; appears legal, no reviews yet; stack with #1586 — **evaluate in same run**
-15. **TMA Megakernel (Triton TMA fused MLP)** — PR #1555, +10.5% throughput = ~200 extra steps — add after base validated
-16. **CaseOps bijective tokenizer** — TITLE/ALLCAPS/CAPNEXT/ESC control tokens; BPB on original UTF-8 via sidecar; PR #1769 (1.06453), PR #1771 (1.06513, bigbag) — **begin implementation prep; await Issue #1604 ruling (deadline Apr 24)**
+14. **Attention Output Gate + SmearGate (PR #1667)** — 1,056 extra params (12×8×11 heads); multiplicative per-head gate init to zero; backed by arXiv:2505.06708
+15. **MP-SGD TTT 4 phases (PR #1727)** — score-first each phase; stackable
+16. **TMA Megakernel (Triton TMA fused MLP)** — PR #1555, +10.5% throughput = ~200 extra steps — add after base validated
+17. **CaseOps bijective tokenizer** — TITLE/ALLCAPS/CAPNEXT/ESC control tokens; BPB on original UTF-8 via sidecar — **Issue #1604 self-deadline PASSED with NO ruling. Do NOT block GPU runs on this. Implement clean stack now.**
 
 **Key reference PRs**: #1493 (merged SOTA 1.0810), #1769 (1.06453, dexhunter, best CaseOps — await ruling), #1771 (1.06513, bigbag, CaseOps+Depth Curriculum+LoRA-TTT improvements — await ruling), #1667 (1.07139, Attention Output Gate+SmearGate — clean, stack on #1586), #1767 (1.07209, renqianluo, LoRA-TTT warm-start A+alpha=144 — appears legal), #1586 (1.07493, per-layer GPTQ — implement now), #1560 (1.07406, best open safe — VarLen+Doc-TTT), #1584 (1.0752, systems opt — fused Muon/EMA/prealloc), #1555 (1.07636, TMA Megakernel+Tap-In), #1437 (1.08091, causal-fixed N-gram Tilt kernel — use this), #1413 (1.08279, SP8192+Legal TTT), #1334 (1.0897, arch reference)
 
@@ -199,6 +206,10 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | **CaseOps Bijective Tokenizer** | **~-0.014 bpb (est.)** | **LEGALITY DEBATED — PR #1769 (dexhunter, 1.06453), #1771 (bigbag, 1.06513); reversible case-factoring (TITLE/ALLCAPS/CAPNEXT/ESC control tokens); BPB on original UTF-8 via byte sidecar; bigbag filing PR #1771 = strongest signal of legal approval; await Issue #1604 ruling (Apr 24 self-deadline); begin implementation prep now** |
 | **LoRA-TTT warm-start A + alpha=144 + WD=1.0** | **~+0.009 bpb improvement vs standard TTT** | **APPEARS LEGAL — PR #1767 (renqianluo, 1.07209) and PR #1771 (bigbag) both use this; score-first per-document AdamW; warm-start A from training weights; add to our TTT phase** |
 | **MP-SGD TTT 4 phases** | **~-0.009 bpb (est.)** | **APPEARS LEGAL — PR #1727 (yahya010, 1.07217); score-first each phase, all under torch.no_grad() before update; extends 3-phase approach; stackable** |
+| **Polar Express Newton-Schulz (arXiv:2505.16932, ICLR 2026)** | **~+5-10% step quality** | **IMPLEMENT — Drop-in replacement for fixed 5-step NS in Muon; adapts polynomial update rule each NS iteration; ~2× faster convergence vs NS when σ_min ≈ ℓ. PR #1787 uses it (1.06335 BPB). Zero legality risk.** |
+| **MIN_LR warmdown floor** | **~+steps quality** | **IMPLEMENT — Set MIN_LR=0.10 (warmdown to 10% of peak LR, not 0). PR #1787. Easy 1-line change.** |
+| **PPM Byte-Level Adaptive Mixture (PR #1795)** | **~-0.069 bpb (vs 1.0810)** | **WATCH — 1.01252 BPB (OE-GOD). Classical PPM order-4 + neural LM byte-level mixture with adaptive-λ gate. Score-first: PPM updates counts only after scoring each byte. Gate legality concern was fixed. Await @valerio-oai ruling before implementing.** |
+| **Gram Newton-Schulz (Dao-AILab 2026)** | **similar to Polar Express** | **WATCH — Iterates on small symmetric Gram matrix XX^T, lower FLOPs vs standard NS. pip installable. Alternative to Polar Express.** |
 | **Looped Transformer Outer Normalization (arXiv:2604.15259)** | **unknown standalone** | **WATCH — Apr 2026; proof that "recall + outer normalization = stable looped regime"; adding LayerNorm/RMSNorm at loop output may enable deeper loops (4×) or earlier activation; ~1–3 lines** |
 | **Casefold Tokenizer (NFKC + lowercase BPE retrain)** | **~-0.017 bpb** | **LEGALITY DEBATED — PR #1578 (1.0668), #1585 (1.0639); modifying val corpus byte count raises comparability concern; await @valerio-oai ruling** |
 | **GDN-Hybrid Architecture (Gated DeltaNet + SWA)** | **~~-0.064 vs merged SOTA~~ → BPB BUG** | **BPB CALCULATION BUG (Apr 13 confirmed) — PR #1576 space-token double-count; actual ~1.16–1.18, not 1.01671. PR #1698 (arsenis-cmd) also has same bug + artifact size violation. All GDN PRs effectively dead.** |
@@ -432,3 +443,13 @@ _Updated: 2026-04-21 (v15.1 — merged SOTA 1.0810 Day 12; PR #1758 pre-quant TT
 104. **Day 13 plateau = the field is waiting for Issue #1604.** Almost all new PRs use CaseOps. The competition is blocked on a single organizer ruling. If @valerio-oai approves CaseOps, there will be a massive merge wave. If rejected, the clean non-CaseOps stack (#1586+#1667+#1560+#1727+LoRA-TTT) is still ~1.068–1.072, which beats merged SOTA by >0.005 nats.
 
 _Updated: 2026-04-22 (v16.0 — merged SOTA 1.0810 Day 13; **bigbag CaseOps PR #1771 (1.06513) — strongest signal CaseOps will pass**; dexhunter PR #1769 (1.06453) new best; LoRA-TTT warm-start A+alpha=144+WD=1.0 appears legal, confirmed by 2 independent authors; arXiv:2604.15259 outer normalization for stable loops; 8 days remaining)_
+
+### Session 20 (2026-04-24)
+105. **Scylla 0.9485 committed to track_10min_16mb/ on Apr 23, but README not updated and score is DISPUTED.** PR #1184 (icryo, "Scylla TokenMonster ~998 tokens + Full GPTQ + XSA-all + FA3") merged Apr 23 as a record folder commit. PR #1271 had earlier identified a byte accounting error; corrected actual score ~1.1289 bpb. Despite the dispute, organizers merged the folder without updating the README leaderboard. Treat merged SOTA as 1.0810 until README changes. Do NOT implement Scylla until dispute is fully resolved.
+106. **PR #1787 (nprime06, 1.06335) is the new community-consensus best clean base, replacing PR #1736.** Key new ingredient: Polar Express Newton-Schulz (arXiv:2505.16932, ICLR 2026) — adaptive polynomial replacing fixed 5-step NS in Muon. Also adds MIN_LR=0.10 warmdown floor and Triton fused cross-entropy. PR #1797 (dexhunter, 1.06157) stacks SmearGate + LQER Asym on #1787. Implement Polar Express NS + MIN_LR immediately — they are pure config changes.
+107. **PR #1795 (OE-GOD, 1.01252) — byte-level PPM order-4 mixture — is the most interesting new technique but needs an organizer ruling.** PPM (Prediction by Partial Matching) is a classical compressor that accumulates byte statistics score-first. Mixed with neural LM via adaptive-λ gate. Initial legality concern (gate conditioned on observed byte) was FIXED by freezing gate before observation. If legal, this alone beats merged SOTA by 0.069 bpb. Risk: organizers may view sequential PPM adaptation (even score-first) as equivalent to pre-quant TTT. WATCH but do NOT implement before ruling.
+108. **Issue #1604 self-deadline (Apr 24) passed with zero @valerio-oai response — 11 days of silence.** The CaseOps wait is over. Proceed with the clean legal stack immediately. Every day waiting for this ruling is a wasted GPU run with 6 days left.
+109. **Retroactive record additions (Apr 23-24) confirm the competition was richer than the README suggested.** Three old-PR records were pushed to main: Scylla 0.9485 (PR #1184, Mar 31), dexhunter 1.1122 (PR #1060), aamodbhatt 1.1179 (PR #1148). These don't change the official leaderboard but show organizers are processing backlog. Expect more README updates soon.
+110. **Polar Express Newton-Schulz (arXiv:2505.16932) is a drop-in Muon improvement now proven in competition.** ICLR 2026 paper by Amsel et al. Adapts NS polynomial update rule each iteration, super-exponentially converging. Used in PR #1787 (1.06335) and PR #1802 (1.0771 with Multi-Phase TTT). Implement by replacing the fixed NS coefficient tuple in Muon with Polar Express adaptive updates. Zero legality risk.
+
+_Updated: 2026-04-24 (v17.0 — merged SOTA 1.0810 Day 15; Scylla 0.9485 in repo but disputed; PR #1787 (1.06335) new clean base with Polar Express NS; PR #1795 (1.01252) PPM mixture needs ruling; Issue #1604 deadline passed — implement clean stack NOW; 6 days remaining)_
