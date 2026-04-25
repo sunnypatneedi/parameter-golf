@@ -1,3 +1,106 @@
+# Parameter Golf Daily Research - 2026-04-25
+
+## PR #771 STATUS: CLOSED (ILLEGAL — confirmed, no change)
+
+Same as Apr 24. @valerio-oai ruling (2026-03-27): train-then-score AdamW TTT 30ep = instant disqualification. Permanent.
+
+---
+
+## N-GRAM PR STATUS
+
+- **PR #727**: CLOSED — permanent (valerio-oai: hash caches don't renormalize correctly).
+- **PR #758**: OPEN but dead — XOR hash key includes target token, flagged by MatoTeziTanka. No fix.
+- **PR #731** (Hedge Mixer — dense count tables + Laplace smoothing): OPEN — still awaiting seeds 1337 and 2024. "LOOKS CLEAN" per reviewer. No merge yet.
+
+---
+
+## Leaderboard
+
+- **Official Merged SOTA (README)**: **1.0810** — bigbag (PR #1493, Apr 9). **Day 16 plateau** — longest in competition history.
+- **Disputed Scylla in repo**: 0.9485 (PR #1184, icryo) — folder in `track_10min_16mb/` but README not updated, byte accounting disputed (~1.1289 corrected per PR #1271). Treat as **UNVERIFIED**.
+- **Our PR #771**: CLOSED/ILLEGAL.
+- **Target**: ≤1.0760 bpb. **5 days to deadline (Apr 30).**
+
+---
+
+## What Changed Since Apr 24 (GitHub)
+
+### New PRs opened Apr 25 (TODAY)
+
+| PR | Author | Score | Technique | Legality |
+|----|--------|-------|-----------|---------|
+| **#1813** | djeidy | **0.94166** | Scylla QK5.25 + depth recurrence + full GPTQ int6 + LZMA | ⚠️ EXTRAORDINARY — no reviews yet, watch for BPB bug |
+| **#1812** | EthanNing | **1.0729** | SP8192 + LegalTTT **4ep** + split MLP WD (mlp=0.115/attn=0.095) | ⚠️ 4ep beyond ≤3ep safe threshold — score-first claimed but needs ruling |
+
+**PR #1813 detail**: Claims QK5.25, depth recurrence on layers 3-5, reduced bigram dim, full GPTQ int6 + LZMA. All artifacts 15.85–15.87 MB (under 16 MB). No legality flags visible. Score is extraordinary — 0.94166 would be competition-leading. Pattern matches prior Scylla claims with BPB bugs. Wait for community review before tracking.
+
+**PR #1812 detail**: 4-epoch score-first TTT. Author explicitly states "Score-first TTT only. No SLOT, no pre-quant TTT." 4ep is above the ≤3ep threshold established by PR #1413 precedent. May be legal (PR #1557 cites PR #1514 as 5ep precedent) but risky. If confirmed legal, 1.0729 is a clean beat of merged SOTA.
+
+### Status of previously-tracked PRs (Apr 25 update)
+
+- **PR #1795** (PPM mixture, 1.01252): OPEN, **still no organizer ruling**. OE-GOD has flagged the legality question explicitly in submission.json. Do NOT implement.
+- **PR #1797** (dexhunter, 1.06157): OPEN, clean. dexhunter pushed a CaseOps byte-counting fix on Apr 24 — reported metric unchanged. Still best clean dexhunter PR.
+- **PR #1787** (nprime06, 1.06335): OPEN. One reviewer raised GPTQ timing concern; no organizer ruling. Still the community-consensus best base.
+- **PR #1807** (davie2009kh, 1.07037): "Parallel pre-quant TTT" explicitly in title and technique — **ILLEGAL** despite author claiming no pre-quant TTT leakage. Same violation pattern as #1351/#1408. Do NOT track.
+- **PR #1667** (Attention Output Gate + SmearGate, 1.07139): OPEN, no new reviews as of Apr 25.
+- **PR #1727** (MP-SGD TTT 4-phase, 1.07217): OPEN, no new reviews as of Apr 25.
+- **Issue #1604** (CaseOps ruling): **STILL NO @valerio-oai response**. 12 days silence. Proceed without CaseOps.
+
+---
+
+## New Research Papers
+
+### arXiv:2604.21215 — "The Recurrent Transformer: Greater Effective Depth and Efficient Decoding" (Apr 23, 2026)
+- Each layer attends to KV pairs computed off its own activations → layerwise recurrent memory, standard autoregressive decoding cost.
+- On 150M and 300M param C4 pretraining: improves cross-entropy vs parameter-matched Transformer baseline with *fewer layers*.
+- **Relevance**: Directly describes our Triple Loop mechanism. Suggests our 3× depth recurrence approach has strong theoretical grounding. Also supports adding per-loop-iteration KV retention. May help motivate depth 4× with outer normalization.
+- **Action**: Read architecture section before next architecture experiment. No GPU run needed.
+
+### arXiv:2604.11791 — "A Mechanistic Analysis of Looped Reasoning Language Models" (Apr 2026)
+- Proves each layer in a looped model converges to a **distinct fixed point**; loop follows a consistent cyclic trajectory.
+- Recurrent blocks learn distinct inference stages that repeat in depth.
+- **Relevance**: Supports outer normalization (arXiv:2604.15259) to stabilize each fixed point. Our Triple Loop should benefit from RMSNorm at loop output (suggested in CLAUDE.md). ~1–3 lines of code.
+- **Action**: Low-risk 1-liner after base stack is validated.
+
+### Gram Newton-Schulz (Dao-AILab, github.com/Dao-AILab/gram-newton-schulz)
+- Iterates on symmetric Gram matrix XX^T instead of rectangular M → lower FLOPs, symmetric GEMM kernels.
+- "Up to 2× faster" Newton-Schulz. pip installable. Drop-in for NS in Muon.
+- **CAVEAT**: Requires **Hopper or Blackwell GPU + CUDA 12.9+ + PyTorch 2.7.1+**. H100 SXM nodes typically run CUDA 12.x — may work, but driver version is uncertain. Must verify CUDA version on RunPod pod before attempting.
+- **Action**: Check CUDA version on next RunPod pod (`nvcc --version`). If CUDA ≥12.9 and PyTorch ≥2.7.1: test as Polar Express NS alternative. If not: skip.
+
+---
+
+## HuggingFace / Community Discoveries
+
+- dexhunter fixed a CaseOps byte-counting script (Apr 24) — shows ongoing maintenance of his stack. PR #1797 remains the most reliable dexhunter submission.
+- PR #1813 (djeidy, 0.94166) is the second extraordinary Scylla-style claim this week. Pattern: large score, no reviews, potential BPB bug. Do not act until BPB verified by community (typically 1–3 days).
+- Competition has entered final sprint phase: 4 new PRs opened Apr 25 (PRs #1812–1815), confirming acceleration.
+
+---
+
+## Recommended Actions (Priority Order, 5 days to deadline)
+
+1. **GPU RUN TODAY**: Full clean legal stack on PR #1493 base. Implement in order:
+   - Polar Express NS + MIN_LR=0.10 (from PR #1787 — 2 config changes)
+   - Per-Layer Adaptive GPTQ MLP=12σ/Attn=13σ + int7 Emb@15σ (PR #1586)
+   - Attention Output Gate + SmearGate (PR #1667)
+   - LoRA-TTT warm-start A + alpha=144 + WD=1.0 (PR #1767)
+   - Target: ~1.068–1.072 bpb. This alone beats merged SOTA by ≥0.005 nats.
+
+2. **Monitor PR #1813** (Scylla 0.94166): if community reviewer confirms no BPB bug and artifact is clean, this changes the competition. Check again in 24–48 hours.
+
+3. **Monitor PR #1812** (4ep TTT, 1.0729): if score confirmed and 4ep ruling is clarified, this gives a cleaner path to 1.07xx without additional stack work. Check for organizer comment.
+
+4. **DO NOT implement**: CaseOps (no ruling), PPM (no ruling), pre-quant TTT (illegal), Scylla (BPB unverified), Gram-NS (hardware constraint uncertain).
+
+5. **Deadline**: Apr 30. Today is Apr 25. 5 days left. No more research delays.
+
+---
+
+*Research session: 2026-04-25 | Next check: 2026-04-26 | Days to deadline: 5*
+
+---
+
 # Parameter Golf Daily Research - 2026-04-24
 
 ## PR #771 STATUS: CLOSED (ILLEGAL — confirmed)

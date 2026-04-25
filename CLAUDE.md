@@ -112,8 +112,10 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — NO CHANGE (confirmed Apr 24, **Day 15 plateau** — longest in competition history). NOTE: Scylla 0.9485 record folder was committed to `track_10min_16mb/` on Apr 23 (PR #1184, icryo) but README not updated and score is DISPUTED (PR #1271 corrects to ~1.1289 bpb via byte accounting fix). Treat merged SOTA as 1.0810 until README is updated.
-**Best open legal PRs (Apr 24 update)**:
+**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — NO CHANGE (confirmed Apr 25, **Day 16 plateau** — longest in competition history). NOTE: Scylla 0.9485 record folder was committed to `track_10min_16mb/` on Apr 23 (PR #1184, icryo) but README not updated and score is DISPUTED (PR #1271 corrects to ~1.1289 bpb via byte accounting fix). Treat merged SOTA as 1.0810 until README is updated.
+**Best open legal PRs (Apr 25 update)**:
+  - PR #1813 (djeidy, **0.94166**): Scylla QK5.25 + depth recurrence (layers 3-5) + full GPTQ int6 + LZMA — opened Apr 25, no reviews yet. EXTRAORDINARY score — **watch for BPB bug before acting** (same pattern as #1184, #1576, #1698). Artifact 15.85–15.87 MB.
+  - PR #1812 (EthanNing, **1.0729**): SP8192 + LegalTTT **4ep** + split MLP WD (mlp=0.115/attn=0.095) — opened Apr 25, no reviews. ⚠️ 4ep beyond ≤3ep safe threshold. Score-first claimed. If confirmed legal, clean beat of merged SOTA.
   - PR #1795 (OE-GOD, **1.01252**): SP4096 + byte-level PPM order-4 adaptive-λ mixture — score-first (PPM updates after scoring each byte); initial gate legality concern **FIXED** (gate frozen before observing byte). Extraordinary score — **WATCH CLOSELY for organizer ruling before implementing**.
   - PR #1797 (dexhunter, **1.06157**): PR #1787 base + SmearGate + LQER Asym — **dexhunter's new best, no flags**. Stack on this.
   - PR #1801 (leon2k2k2k, **1.06287**): PR #1787 base + Sparse Gate + Updated Frozen Carry — no flags.
@@ -145,7 +147,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 **Best open with SLOT**: ~1.0616 val_bpb (PR #1647, powerpratik, SLOT-4) — no reviews yet
 **Best open (illegal)**: 1.0429 (PR #1735, pre-quant TTT)
 **Issue #1604 (CaseOps ruling)**: **SELF-DEADLINE PASSED (Apr 24) — NO @valerio-oai response in 11 days**. Proceed with clean legal stack NOW. Do not wait.
-**Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable (legal, no CaseOps): ~1.065–1.068 (clean stack #1787 base + #1586 + #1667 + #1560 + #1727 + LoRA-TTT warm-start A + Polar Express NS + MIN_LR). **6 days to deadline (Apr 30). Stop waiting — implement NOW.**
+**Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable (legal, no CaseOps): ~1.065–1.068 (clean stack #1787 base + #1586 + #1667 + #1560 + #1727 + LoRA-TTT warm-start A + Polar Express NS + MIN_LR). **5 days to deadline (Apr 30). Stop waiting — implement NOW.**
 
 **CRITICAL LEGALITY UPDATES**:
 - **PR #771 REJECTED (2026-03-27)** — Our AdamW TTT 30ep was train-then-score. All 30-epoch TTT results void.
@@ -161,7 +163,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 - **Casefold Tokenizer (PR #1578, #1585)**: LEGALITY DEBATED (Apr 13) — modifying validation corpus bytes via case normalization may constitute invalid benchmark manipulation. Await @valerio-oai ruling before implementing.
 - **Per-Layer Adaptive GPTQ (PR #1586)**: NO LEGALITY FLAGS — safe config change, implement immediately.
 
-**Current best-stack approach (PR #1787 as new base, Apr 24 update)**:
+**Current best-stack approach (PR #1787 as new base, Apr 25 update)**:
 1. **SP8192 vocab** — beats SP4096 by ~0.009 bpb [merged SOTA]
 2. **Triple Loop (17 virtual layers)** — layers 4-5 repeated 3×, activated at 0.35× training [merged SOTA]
 3. **Parallel Residuals (layers 7-10)** — GPT-J style [merged SOTA]
@@ -453,3 +455,12 @@ _Updated: 2026-04-22 (v16.0 — merged SOTA 1.0810 Day 13; **bigbag CaseOps PR #
 110. **Polar Express Newton-Schulz (arXiv:2505.16932) is a drop-in Muon improvement now proven in competition.** ICLR 2026 paper by Amsel et al. Adapts NS polynomial update rule each iteration, super-exponentially converging. Used in PR #1787 (1.06335) and PR #1802 (1.0771 with Multi-Phase TTT). Implement by replacing the fixed NS coefficient tuple in Muon with Polar Express adaptive updates. Zero legality risk.
 
 _Updated: 2026-04-24 (v17.0 — merged SOTA 1.0810 Day 15; Scylla 0.9485 in repo but disputed; PR #1787 (1.06335) new clean base with Polar Express NS; PR #1795 (1.01252) PPM mixture needs ruling; Issue #1604 deadline passed — implement clean stack NOW; 6 days remaining)_
+
+### Session 21 (2026-04-25)
+111. **PR #1813 (djeidy, Scylla 0.94166) is the third extraordinary Scylla-style claim — high BPB-bug risk.** Opened Apr 25, QK5.25 + depth recurrence layers 3-5 + full GPTQ int6 + LZMA. No reviews. Artifact 15.85–15.87 MB. The score pattern (extraordinary, no community review, Scylla-derived) matches PRs #1184 (#1271 corrected to ~1.1289), #1576 (BPB bug confirmed), #1698 (BPB bug confirmed). Wait 24–48 hours for community BPB verification before acting.
+112. **PR #1812 (EthanNing, 1.0729, 4ep TTT) opens a legal question about TTT epoch count.** Opened Apr 25, score-first claimed, but 4ep exceeds the ≤3ep threshold established by PR #1413 and confirmed safe. PR #1557 cites 5ep as legal via PR #1514 precedent — status uncertain. If 4ep is ruled legal and score confirmed, this is a clean path to beating merged SOTA by 0.0081 bpb with minimal stack changes. Monitor for organizer response.
+113. **arXiv:2604.21215 (Recurrent Transformer, Apr 23) validates our Triple Loop design.** The paper shows layerwise recurrent memory (each layer attends to KV pairs from its own prior activation) improves cross-entropy vs parameter-matched Transformers with fewer layers. Our PR #1493 Triple Loop (layers 4-5 repeated 3×) is this architecture. Supports adding outer normalization per arXiv:2604.15259 as a stability improvement.
+114. **arXiv:2604.11791 (Mechanistic Analysis of Looped Reasoning LMs) confirms loop stages are distinct.** Each layer in a loop converges to a distinct fixed point. Recurrent blocks follow a consistent cyclic trajectory. This supports outer normalization between loop iterations to prevent fixed-point collapse. Implementation: ~1–3 lines adding RMSNorm at loop output. Add after base stack is confirmed.
+115. **Gram Newton-Schulz (Dao-AILab) requires CUDA 12.9+ + PyTorch 2.7.1+ — verify hardware before using.** The 2× faster NS algorithm is attractive but has strict hardware requirements (Hopper/Blackwell GPU, CUDA 12.9+, PyTorch 2.7.1+). RunPod H100 SXM pods may not meet these requirements depending on provisioned driver. Always run `nvcc --version` first. If requirements not met, use Polar Express NS from PR #1787 instead.
+
+_Updated: 2026-04-25 (v18.0 — merged SOTA 1.0810 Day 16; PR #1813 Scylla 0.94166 new extraordinary claim (BPB risk); PR #1812 4ep TTT 1.0729 (legal question); arXiv:2604.21215 validates Triple Loop; arXiv:2604.11791 confirms loop stages; Gram-NS needs CUDA 12.9+; 5 days remaining)_
