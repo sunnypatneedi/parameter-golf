@@ -1,3 +1,131 @@
+# Parameter Golf Daily Research - 2026-04-26
+
+## PR #771 STATUS: CLOSED (ILLEGAL — no change)
+
+@valerio-oai ruling (2026-03-27): train-then-score AdamW TTT 30ep = instant disqualification. Permanent. Score of 1.0705 is void.
+
+---
+
+## N-GRAM PR STATUS
+
+- **PR #727**: CLOSED — permanent (illegal hash cache, no renormalization).
+- **PR #758**: OPEN but dead — XOR hash key includes target token (flagged by MatoTeziTanka). No fix.
+- **PR #731** (Hedge Mixer — dense count tables + Laplace smoothing): OPEN — "LOOKS CLEAN" per reviewer. Seeds 1337 and 2024 still PENDING. Not merged. No new activity.
+
+---
+
+## Leaderboard
+
+- **Official Merged SOTA (README)**: **1.0810** — bigbag (PR #1493, Apr 9). **Day 17 plateau** — longest in competition history.
+- **CRITICAL (TODAY)**: Upstream commit `7427de2` (Apr 26, Alex Zhao / OpenAI): **Scylla 0.9485 (PR #1184, icryo) REMOVED as invalid** ("Remove invalid Scylla record"). Also removed a non-record Muon TTT submission. The disputed record is officially dead. Merged SOTA is **definitively 1.0810**.
+- **Our PR #771**: CLOSED/ILLEGAL.
+- **Target**: ≤1.0760 bpb. **4 days to deadline (Apr 30).**
+
+---
+
+## What Changed Since Apr 25 (GitHub)
+
+### Organizer Action — Scylla Reverted (CRITICAL)
+Commit `7427de2` by Alex Zhao (OpenAI, Apr 26 00:49 EDT):
+- "Remove invalid Scylla record" — deletes `track_10min_16mb/2026-03-31_Scylla_FullGPTQ_XSA_FA3/` folder (PR #1184, 0.9485 BPB)
+- "Remove non-record Muon TTT submission"
+- Updates README leaderboard accordingly (confirmed 1.0810 SOTA)
+
+**Impact**: Any Scylla-based claim (PR #1813, 0.94166) now faces **increased organizer scrutiny** given the parent PR was reverted. Do NOT invest in Scylla. PR #1813 BPB risk is now effectively confirmed by proxy.
+
+### New PRs opened Apr 26 (TODAY)
+
+| PR | Author | Score | Technique | Legality |
+|----|--------|-------|-----------|---------|
+| **#1835** | anmarhindi | **1.00136** | SP8192 + PPM-D order-5 byte mixture (binary-λ gate) | ⚠️ WATCH — most credible extraordinary claim yet; score-first documented; 24h for community BPB check |
+| **#1834** | ghrua | **1.08034** | NgramRes (3-gram MLP, α=0.3, +0.6M params) + Sliding-Window Attn (layers 0-3, window=512) + Legal TTT | Appears legal — references PR #1493 precedent |
+| **#1837** | X-Abhishek-X | 1.07063 | Non-record: E2E TTT (full-model SGD per chunk) | Non-record, 10min+ |
+| **#1836** | hardik-bhalekar | Unknown | "hardik_top5_run submission package" | Score unknown |
+| **#1826** (DRAFT) | EthanYangTW | 1.0770 | SP8192 + Polar Express + SmearGate + AttnOutGate + 4ep TTT | Draft — 4ep legality pending |
+
+**PR #1835 detail** (highest priority to monitor):
+- PPM-D (Prediction by Partial Matching, order-5) at byte level. Binary-λ gate: λ=0.05 (trust PPM) when PPM top-symbol ≥0.9, else λ=0.9 (trust NN). Mix in probability space before BPB.
+- Score-first: PPM state updated **after** each byte is scored — explicitly compliant per author.
+- Artifact: **15,993,020 bytes** (6,980 bytes under 16 MB cap — very tight).
+- 3-seed mean 1.00136, std 0.00111.
+- No BPB bug flags in visible comments (as of Apr 26 morning). Substantially different technique from the GDN/Scylla BPB bugs.
+- **Wait 24-48h for community review before implementing.**
+
+**PR #1834 detail** (stackable, modest):
+- NgramRes: small 3-gram MLP component (+0.6M params) mixed with main model output via learned α=0.3.
+- Sliding-Window Attention: window=512 on layers 0-3 only, full causal attention on remaining layers.
+- Achieves 1.08034 — slight beat of merged SOTA (1.0810) but below our target of ≤1.0760.
+- **Legality**: appears clean. Could stack NgramRes onto our stack.
+
+### Status of previously-tracked PRs (Apr 26 update)
+
+| PR | Author | Score | Status | Notes |
+|----|--------|-------|--------|-------|
+| **#1813** | djeidy | 0.94166 | OPEN | Scylla-based — parent (PR #1184) reverted today as INVALID. Treat as dead. |
+| **#1812** | EthanNing | 1.0729 | OPEN | 4ep TTT: reviewer questioned attribution (may not be from 4ep). No organizer ruling. |
+| **#1797** | dexhunter | 1.06157 | OPEN | Best clean dexhunter PR. SmearGate + LQER Asym on PR #1787. No new comments. |
+| **#1787** | nprime06 | 1.06335 | OPEN | Best community base. GPTQ timing concern raised — submitter says no gradients in GPTQ step. No organizer ruling. |
+| **#1667** | MarioPaerle | 1.07139 | OPEN | Attention Output Gate + SmearGate. Clean. Stack on #1586. |
+| **#1727** | yahya010 | 1.07217 | OPEN | MP-SGD TTT 4-phase. Appears legal. Stackable. |
+| **#1795** | OE-GOD | 1.01252 | OPEN | PPM order-4 mixture. No organizer ruling. DO NOT implement. |
+| **#1771** | bigbag | 1.06513 | OPEN | CaseOps + Depth Curriculum. Awaits Issue #1604. |
+| Issue #1604 | — | — | **NO RULING** | 12+ days silence. Self-deadline Apr 24 passed. Proceed without CaseOps. |
+
+---
+
+## New Research Papers
+
+### Gram Newton-Schulz — Chebyshev variant (arXiv:2506.10935)
+- "Accelerating Newton-Schulz Iteration for Orthogonalization via Chebyshev-type Polynomials"
+- Theoretically derives optimal 3rd-order NS coefficients via Chebyshev's alternance theorem. Applies Remez algorithm for higher-degree polynomials.
+- Complementary to Polar Express (arXiv:2505.16932) — different derivation path, both improve convergence.
+- **Relevance**: If achievable on H100 SXM pods, could be a slight upgrade over standard Polar Express NS.
+- **Action**: Read implementation notes before trying. Verify CUDA/PyTorch requirements same as Gram-NS.
+
+### End-to-End TTT for Long Context (arXiv:2512.23675, Dec 2025)
+- Next-token prediction as TTT objective, compresses context into weights as model reads validation.
+- For 3B models on 164B tokens: scales with context length equivalent to full attention Transformer.
+- **Relevance**: Provides theoretical grounding for our score-first TTT approach. The "compress-as-you-read" framing is exactly our legal TTT paradigm.
+- **Action**: No implementation needed — we're already aligned with this paradigm.
+
+---
+
+## HuggingFace / Community Discoveries
+
+- Competition is at **final sprint**: 7 new PRs opened Apr 26 alone (PRs #1831–1837). Submission rate increasing dramatically in final 4 days.
+- PPM-D technique (PR #1835) is a new variant of PPM beyond the order-4 approach in PR #1795. "D" suffix likely = "depth" or "deterministic" weighting. If community confirms clean BPB: sub-1.001 is legitimate and would represent a ~0.079 bpb improvement over merged SOTA.
+- PR #1834 NgramRes approach (+0.6M params for 3-gram MLP) could complement our architecture — adds n-gram signal without the legality questions of hash caches.
+
+---
+
+## Recommended Actions (Priority Order, 4 days to deadline)
+
+1. **GPU RUN TODAY — clean legal stack** (4 days remain, no more delays):
+   - Base: PR #1493 + Polar Express NS + MIN_LR=0.10 (PR #1787 changes)
+   - Per-Layer Adaptive GPTQ MLP=12σ/Attn=13σ + int7 Emb@15σ (PR #1586)
+   - Attention Output Gate + SmearGate 1,056 params init-0 (PR #1667)
+   - LoRA-TTT warm-start A + alpha=144 + WD=1.0 (PR #1767)
+   - Target: ~1.068–1.072 bpb. Beats merged SOTA by ≥0.008 nats with margin.
+
+2. **Monitor PR #1835** (PPM-D, 1.00136) for 24h: If community confirms no BPB bug by Apr 27, this is the single most important technique to add. Implementation: pure eval-time, no artifact weight change needed. Could be added on top of any clean stack.
+
+3. **DO NOT implement**:
+   - PR #1813 (Scylla 0.94166) — parent PR reverted as invalid today
+   - CaseOps (no ruling, Issue #1604 silent 12+ days)
+   - PR #1795 (PPM order-4, no organizer ruling)
+   - Any pre-quant TTT variant (illegal)
+   - PR #1758, #1735, #1738 (illegal chain)
+
+4. **Low-priority watch**:
+   - PR #731 (Hedge Mixer, 1.0400) — 2 seeds pending. If merged before Apr 30, NgramRes from PR #1834 confirms n-gram mixtures are a viable path.
+   - PR #1812 (4ep TTT, 1.0729) — if 4ep gets an organizer green light, upgrade our TTT from 3→4ep for free improvement.
+
+---
+
+*Research session: 2026-04-26 | Next check: 2026-04-27 | Days to deadline: 4*
+
+---
+
 # Parameter Golf Daily Research - 2026-04-25
 
 ## PR #771 STATUS: CLOSED (ILLEGAL — confirmed, no change)
