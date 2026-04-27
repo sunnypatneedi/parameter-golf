@@ -1,3 +1,121 @@
+# Parameter Golf Daily Research - 2026-04-27
+
+## PR #771 STATUS: CLOSED (ILLEGAL — no change)
+
+@valerio-oai ruling (2026-03-27): train-then-score AdamW TTT 30ep = instant disqualification. Permanent.
+
+---
+
+## N-GRAM PR STATUS
+
+- **PR #727**: CLOSED — permanent (illegal hash cache, no renormalization).
+- **PR #758**: OPEN but dead — XOR hash key includes target token (flagged by MatoTeziTanka Apr 12). No fix from author.
+- **PR #731** (Hedge Mixer — dense count tables + Laplace smoothing): OPEN — "LOOKS CLEAN" per reviewer. Seeds 1337 and 2024 still PENDING. No merge. No new activity.
+
+---
+
+## Leaderboard
+
+- **Official Merged SOTA (README)**: **1.0810** — bigbag (PR #1493, Apr 9). **Day 18 plateau** — longest in competition history. No merges since Apr 9.
+- **Scylla**: Officially removed by OpenAI commit `7427de2` (Apr 26). Definitively dead. Merged SOTA is 1.0810.
+- **Our PR #771**: CLOSED/ILLEGAL.
+- **Target**: ≤1.0760 bpb. **3 days to deadline (Apr 30).**
+
+---
+
+## What Changed Since Apr 26 (GitHub)
+
+### PPM-D Wave — Now Dominant Competition Technique
+
+Multiple PRs filed Apr 26–27 all use byte-level PPM mixture. dexhunter independently validated the technique at 1.0322 (PR #1857) before self-closing in favor of the earlier-filed PR #1850. This cross-validation by the most reliable competition contributor is strong signal the mechanism works. No organizer ruling yet.
+
+| PR | Author | Score | Technique | Status | Notes |
+|----|--------|-------|-----------|--------|-------|
+| **#1848** | newjordan | **0.87980** | "12L SP4096 + brotli + mixed-int + score-first TTT" | OPEN | ⚠️ **BPB RISK** — extraordinary score; sibling PR #1846 (0.87206) CLOSED same day with no explanation; no community BPB verification; do NOT implement |
+| **#1846** | newjordan | **0.87206** | "Raphe" (similar to #1848) | **CLOSED Apr 27** | Self-closed, no explanation; artifact 13.49MB — **suspicious closure suggests BPB bug** |
+| **#1854** | ndokutovich | **0.90236** | PPM-D byte mixture on PR #1797 base | OPEN | Explicitly documents Issue #1017 compliance (causality + normalized + score-before-update + single pass). 15.95MB artifact. No reviewer comments. |
+| **#1858** | G3sparky | **0.9946** | Score-First TTT + PPM-D byte mixture | OPEN | ⚠️ **PARTIAL DATA** — @dexhunter flagged: score computed on first 8M tokens only (~20% of full 40.5M val set). NOT comparable to full leaderboard. Do not track. |
+| **#1852** | G3sparky | **1.0282** | Pre-Quant TTT + Void Compass | OPEN | Pre-quant TTT = **ILLEGAL**. |
+| **#1850** | someone114514 | **1.00495** | Strict Full-Val Byte PPM Mixture | OPEN | 15.997MB (2,567 bytes under cap). Score-before-update documented. Priority watch — preceded #1857. |
+| **#1857** | dexhunter | **1.0322** | PR #1787 + SmearGate + LQER + PPM-D (OpenMP parallelized) | **CLOSED** | Self-closed: yielded to PR #1850 (earlier filing). dexhunter independently validates PPM-D mechanism. High credibility signal. |
+| **#1861** | Hetul803 | ~0.8997 est | SkipQuant Adapter TTT + PPM-D | **CLOSED** | Closed before any reviews. Possible BPB issue. |
+| **#1863** | seinare | unknown | Arterial Mixer (N-Lane Transformer) | **CLOSED** | Architecture-only attempt, no competitive score. |
+
+### Clean Legal PRs (Apr 26–27)
+
+| PR | Author | Score | Technique | Notes |
+|----|--------|-------|-----------|-------|
+| **#1855** | codemath3000 | **1.06108** | SP8192 + LQER Asym int4 + Sparse Attn Gate + **SmearGate BOS Fix** + lrzip compression | PR #1797 base. SmearGate BOS fix addresses prev-token leak at document boundaries. Clean. |
+| **#1851** | aquariouseworkman | **1.06128** | **SmearGate BOS Fix** + PR #1787 Base + Phased TTT | BOS fix confirmed independently by two authors. |
+| **#1826** | EthanYangTW | **1.0770** | SP8192 + Polar Express + SmearGate + AttnOutGate + 4ep TTT | 4ep TTT flag. Appears clean otherwise. |
+| **#1809** | PranavViswanath | **1.0800** | SP8192 + Gram-NS + Polar Express + 3-Layer Recurrence + Parallel Residuals | Gram-NS + Polar Express both in same submission. |
+
+### SmearGate BOS Bug — IMPORTANT FIX
+
+Both PR #1855 and PR #1851 independently fix the same bug: SmearGate's prev-token lookback leaks **across document boundaries** at BOS positions (BOS token has no prev-token to look back at). Fix: mask the prev-token term wherever `current_token == BOS`. **Any implementation of SmearGate must include this fix.**
+
+### PR #1835 (anmarhindi, 1.00136) — 24h Watch Period Elapsed
+
+- Still OPEN. No reviewer comments. No @valerio-oai ruling on PPM-D legality.
+- No community BPB bug flagged after 24+ hours. Unlike GDN/Scylla BPB bugs (caught within hours by community), PR #1835 has survived initial scrutiny.
+- **Assessment**: Technique credibility HIGH. Legality ruling is the only remaining gate.
+
+### Issue #1604 (CaseOps ruling) — Day 14 Silence
+
+No @valerio-oai response. 14 days since filing, 3 days since self-deadline passed. Do NOT wait. Proceed with clean legal stack only.
+
+---
+
+## New Research Papers
+
+### arXiv:2604.07822 — "Loop, Think, & Generalize: Implicit Reasoning in Recurrent-Depth Transformers" (Apr 2026)
+- Models looped transformers as implicit solvers for fixed-point equations. Each "loop step" acts as a refinement pass toward a converged representation. Provides geometric analysis of why additional loop iterations improve performance on reasoning tasks.
+- **Relevance**: Directly supports our Triple Loop (3× recurrence). Suggests that longer loops can encode "depth-first" reasoning, making depth curriculum (arXiv:2511.07384) even more motivated. Also supports Parcae-style outer normalization to stabilize fixed-point convergence.
+- **Action**: No immediate code change. Confirms the architecture direction.
+
+### Gram Newton-Schulz (Dao-AILab)
+- PR #1809 (PranavViswanath, 1.0800) uses both Gram-NS and Polar Express NS simultaneously — confirms they are complementary, not redundant. Score of 1.0800 vs PR #1493 base of 1.0810 suggests minimal gain on top of existing stack, but it's a free optimizer change.
+- **Caveat**: Requires CUDA 12.9+ and PyTorch 2.7.1+. Check hardware before using.
+
+---
+
+## HuggingFace / Community Discoveries
+
+- **dexhunter validating PPM-D** (PR #1857, self-closed) is the strongest community signal yet that PPM-D byte mixture is a real technique. When the most reliable author in the competition independently reproduces a technique at 1.0322 before deferring to an earlier PR, the mechanism is confirmed.
+- **PR #1846 closure pattern matches BPB bug**: newjordan's PR #1846 (0.87206) was closed the same day it was filed (Apr 27), with no explanation and an unusually small 13.49MB artifact. This pattern (extraordinary score + fast self-close) strongly resembles prior BPB bug cases. PR #1848 (0.87980, still open) should be treated with same skepticism.
+- **Competition final sprint**: 15+ new PRs opened Apr 26–27 alone. Merge decisions will likely happen in final 2 days. File before Apr 29 to maximize review window.
+
+---
+
+## Recommended Actions (Priority Order, 3 days to deadline)
+
+1. **GPU RUN TODAY — final submission window**:
+   - PR #1787 base (Polar Express NS + MIN_LR=0.10 + Fused CE)
+   - Per-Layer Adaptive GPTQ MLP=12σ/Attn=13σ + int7 Emb@15σ (PR #1586)
+   - Attention Output Gate **+ SmearGate with BOS fix** (PR #1667 + #1855/#1851 BOS fix)
+   - LoRA-TTT warm-start A + alpha=144 + WD=1.0 (PR #1767)
+   - Target: ~1.066–1.072 bpb. File as PR before Apr 29.
+
+2. **WATCH PR #1854 (0.90236) and PR #1850 (1.00495)** for organizer review. If PPM-D is ruled legal (same as score-first TTT: score-before-update), add as pure eval-time layer on top of submitted artifact. No retraining needed.
+
+3. **DO NOT implement**:
+   - PR #1848 (0.87980) — BPB risk (sibling PR #1846 closed same-day)
+   - PR #1846 (0.87206) — CLOSED, likely BPB bug
+   - PR #1858 (0.9946) — partial data (8M/40.5M tokens only)
+   - Pre-quant TTT: PR #1852 and all others — illegal
+   - CaseOps: Issue #1604 unruled
+   - PR #1813 (Scylla 0.94166) — parent PR reverted by OpenAI
+
+4. **Low-priority**:
+   - PR #731 (Hedge Mixer, 1.0400): if seeds confirm, provides n-gram mixer blueprint. 3 days left — unlikely to merge in time.
+   - PR #1812 (4ep TTT, 1.0729): if organizer rules 4ep legal, upgrade from 3ep for free gain. Watch for ruling.
+
+---
+
+*Research session: 2026-04-27 | Days to deadline: 3*
+
+---
+
 # Parameter Golf Daily Research - 2026-04-26
 
 ## PR #771 STATUS: CLOSED (ILLEGAL — no change)
