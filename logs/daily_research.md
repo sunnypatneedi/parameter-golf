@@ -1,3 +1,131 @@
+# Parameter Golf Daily Research - 2026-04-28
+
+## PR #771 STATUS: CLOSED (ILLEGAL — no change)
+
+@valerio-oai ruling (2026-03-27): train-then-score AdamW TTT 30ep = instant disqualification. Permanent. Score of 1.0705 is void.
+
+---
+
+## N-GRAM PR STATUS
+
+- **PR #727**: CLOSED — permanent (illegal hash cache, no renormalization).
+- **PR #758**: OPEN but dead — XOR hash key includes target token (flagged by MatoTeziTanka Apr 12). No fix from author.
+- **PR #731** (Hedge Mixer — dense count tables + Laplace smoothing): OPEN — "LOOKS CLEAN" per reviewer. Seeds 1337 and 2024 still PENDING. No merge, no new activity. Unlikely to merge before Apr 30.
+
+---
+
+## Leaderboard
+
+- **Official Merged SOTA (README)**: **1.0810** — bigbag (PR #1493, Apr 9). **Day 19 plateau** — longest in competition history (previous record was ~Day 10). Last actual model merge Apr 9. Last commit Apr 26 (PR #1806, README update only).
+- **Our PR #771**: CLOSED/ILLEGAL.
+- **Target**: ≤1.0760 bpb. **2 days to deadline (Apr 30). FINAL WINDOW.**
+
+---
+
+## What Changed Since Apr 27 (GitHub)
+
+### New PRs Opened Today (Apr 28)
+
+| PR | Author | Score | Technique | Notes |
+|----|--------|-------|-----------|-------|
+| **#1885** | leon2k2k2k | **0.99445** | PR #1850 (PPM-D) + Anti-Hijack Gate | Causality flag (gate conditioned on observed token NLL) raised by OE-GOD, **author fixed** with prefix-only NN top-probability. 15.9 MB. |
+| **#1886** | renqianluo | **1.06957** | Fused CE Triton kernel + WD=2.0 warm-start stability fix | ⚠️ **CRITICAL**: fused CE + warm-start LoRA A collapses at WD=1.0 on seeds 314/1337 (→ ~1.121). Must use **WD=2.0** when combining these two. |
+| **#1894** | ChideraIbe123 | **1.09961** | SP8192 + MuonEq-R + Loop@0.42 + RECUR_AB + QAT-lite | Below target. |
+| **#1893** | Hieuabssy | **1.0901** | Parallel Residuals + UNet Skips + Depth Recur + Muon | Below target. |
+| **#1890** | mradassaad | **1.1456** | Mamba-3 Hybrid + Multi-Epoch TTT + Dynamics-Protected Quant | Below target. |
+| **#1884** | someone114514 | unknown | SmearGate BOS Fix + train-only logit calibration | Score unknown. Watch — "train-only logit calibration" is a new technique to assess. |
+
+### PPM-D Cluster Status (NO ORGANIZER RULING YET)
+
+| PR | Author | Score | Method | Status |
+|----|--------|-------|--------|--------|
+| **#1854** | ndokutovich | **0.90236** | PPM-D order-5 on PR #1797 base | OPEN — no organizer comment |
+| **#1885** | leon2k2k2k | **0.99445** | PR #1850 + Anti-Hijack Gate (causality fix applied) | OPEN — legality fix applied |
+| **#1835** | anmarhindi | **1.00136** | PPM-D order-5 binary-λ gate | OPEN — no organizer comment |
+| **#1850** | someone114514 | **1.00495** | Strict Full-Val Byte PPM Mixture | OPEN — no organizer comment |
+
+**Issue #1872** (PPM-D legality request) — OPEN, **no organizer response**. Core question: is the alphabet Σ in Issue #1017 C2 the token vocabulary (SP8192) or bytes (256)? No ruling before deadline is likely.
+
+### Previously-Tracked PRs (Apr 28 status)
+
+| PR | Score | Status | Notes |
+|----|-------|--------|-------|
+| **#1787** | 1.06335 | OPEN | Best clean base. Polar Express NS + MIN_LR=0.10. No new flags. |
+| **#1797** | 1.06157 | OPEN | dexhunter. SmearGate + LQER Asym on #1787. Clean. |
+| **#1667** | 1.07139 | OPEN | Attention Output Gate + SmearGate. Clean. Stack on #1586. |
+| **#1586** | 1.07493 | OPEN | Per-Layer Adaptive GPTQ (MLP=12σ/Attn=13σ/Emb int7@15σ). Clean. |
+| **#1727** | 1.07217 | OPEN | MP-SGD TTT 4-phase. Appears legal. |
+| **#1767** | 1.07209 | OPEN | LoRA-TTT warm-start A + alpha=144 + WD=1.0. ⚠️ See WD note below. |
+| Issue #1604 | — | NO RULING | Day 15+ silence. CaseOps blocked. Do not wait. |
+
+---
+
+## Critical Implementation Note — WD=2.0 When Using Fused CE + Warm-Start LoRA A
+
+PR #1886 (renqianluo) discovers: the Triton fused cross-entropy kernel introduces fp32-accumulation differences vs standard CE. When combined with warm-start LoRA A (as in PR #1767), these numerical differences destabilize TTT at WD=1.0. Seeds 314 and 1337 collapse to ~1.121 BPB.
+
+**Fix**: raise `TTT_WEIGHT_DECAY` from 1.0 → 2.0.
+
+**Impact on our stack**: If we include the fused CE kernel from PR #1787 AND warm-start LoRA A from PR #1767, we MUST use WD=2.0 (not 1.0) or two of three seeds will fail. Adjust hyperparameter immediately.
+
+---
+
+## New Research Papers
+
+### arXiv:2506.10935 — "Accelerating Newton-Schulz Iteration via Chebyshev-type Polynomials" (Jun 2025)
+- Derives optimal NS coefficients via Chebyshev alternance + Remez algorithm. Complementary to Polar Express (arXiv:2505.16932).
+- Already referenced in competition as Gram-NS — requires CUDA 12.9+ / PyTorch 2.7.1+. Verify H100 pod hardware before attempting. Polar Express NS is the safer drop-in.
+- **Action**: Use Polar Express first. Only try Chebyshev variant if CUDA/PyTorch requirements confirmed.
+
+### "Test-Time Learning for Large Language Models" (arXiv:2505.20633)
+- TTL paradigm: adapts LLM to target domain via input perplexity minimization, using only unlabeled test data.
+- **Relevance**: Legal in spirit (test tokens only, no ground-truth labels). But for our competition, our score-first TTT (next-token prediction on already-scored tokens) is already aligned. Low actionability.
+
+### "Lossless Compression via Next-Token Prediction" (arXiv:2505.06297)
+- LLM-generated token sequences compressed via NTP predictor. Compression = language modeling = BPB.
+- **Relevance**: Confirms BPB framing. No new technique for competition.
+
+---
+
+## HuggingFace / Community Discoveries
+
+- **PR #1886 WD discovery is the most actionable new finding today.** Warm-start LoRA A instability with fused CE is a subtle fp32 accumulation issue that will silently fail on 2/3 seeds. This affects every submission combining PR #1787 (fused CE) + PR #1767 (warm-start LoRA A).
+- **PPM-D has now been independently confirmed by 4 separate authors** (#1795, #1835, #1850, #1854, #1857, #1885). dexhunter validation at 1.0322 + anti-hijack refinement in PR #1885. The mechanism is real. Legality is the only gate.
+- **Competition is effectively over for new architectures.** Final 2 days are submission/review window. File before Apr 29 noon for maximum organizer review time.
+- **PR #1884** (someone114514, SmearGate BOS Fix + "train-only logit calibration") — unknown score. Author filed PR #1850 (the primary PPM-D submission); this appears to be a test/alternate. "Train-only logit calibration" meaning is unclear — could be legal calibration at train-time (not eval-time), watch for score.
+
+---
+
+## Recommended Actions (2 days to deadline)
+
+1. **TODAY IS THE LAST GPU RUN WINDOW.** Execute clean legal stack on 8xH100:
+   - PR #1787 base: Polar Express NS + MIN_LR=0.10 + Fused CE Triton kernel
+   - Per-Layer Adaptive GPTQ MLP=12σ/Attn=13σ + int7 Emb@15σ (PR #1586)
+   - Attention Output Gate + SmearGate **with BOS fix** (PR #1667 + #1855/#1851 BOS fix)
+   - LoRA-TTT warm-start A + alpha=144 + **WD=2.0** (not 1.0! — PR #1886 fix)
+   - Target: ~1.067–1.072 bpb. File as PR by Apr 29.
+
+2. **PPM-D monitoring**: Check Issue #1872 for organizer ruling tomorrow (Apr 29). If any of PR #1835/#1850/#1854 receives @valerio-oai approval before Apr 30, add as pure eval-time layer — no retraining. dexhunter's implementation runs in ~190s (OpenMP parallelized).
+
+3. **DO NOT implement**:
+   - PR #1885 (causality fix applied but overall PPM-D ruling still pending)
+   - PR #1848 (BPB risk — sibling closed same day)
+   - PR #1858 (partial data, 8M/40.5M tokens)
+   - Pre-quant TTT (any form — illegal)
+   - CaseOps (Issue #1604 — Day 15+ no ruling)
+   - PR #1813 (Scylla — parent PR #1184 reverted by OpenAI)
+   - Gram-NS / Chebyshev-NS without verifying CUDA 12.9+ on pod
+
+4. **Low-priority watch**:
+   - PR #731 (Hedge Mixer): seeds pending, "LOOKS CLEAN" — if merged today, n-gram mixer blueprint available
+   - PR #1884 (train-only logit calibration): score unknown, technique unclear — check tomorrow
+
+---
+
+*Research session: 2026-04-28 | Days to deadline: 2 | FINAL GPU WINDOW*
+
+---
+
 # Parameter Golf Daily Research - 2026-04-27
 
 ## PR #771 STATUS: CLOSED (ILLEGAL — no change)
