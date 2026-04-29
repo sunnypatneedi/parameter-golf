@@ -112,8 +112,11 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — CONFIRMED Apr 27, **Day 18 plateau** — longest in competition history. No merges since Apr 9. Scylla 0.9485 (PR #1184) officially removed as invalid by OpenAI commit `7427de2` (Apr 26). Merged SOTA is definitively 1.0810.
-**Best open legal PRs (Apr 27 update)**:
+**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — Day 20 plateau. **IMMINENT CHANGE**: Organizer has prepared two pending branches (not yet merged as of Apr 29):
+- `codex/update-parameter-golf-leaderboard-p025-worktree`: 6 new records, new SOTA 1.0708 (renqianluo, PR #1784)
+- `codex/update-parameter-golf-leaderboard-with-bosfix`: 14 new records, new SOTA **1.0608** (codemath3000, PR #1855) — includes CaseOps PRs (confirming CaseOps LEGAL), SmearGate BOS fix, Tap-In V6, Doc-Independent LoRA TTT
+- **When BOS-fix branch merges, new target becomes ≤1.0558.**
+**Best open legal PRs (Apr 29 update)**:
   - PR #1854 (ndokutovich, **0.90236**): PPM-D byte mixture on PR #1797 base — score-first, Issue #1017 compliant (causality + normalized + score-before-update + single pass), 15.95MB. **WATCH for organizer ruling on PPM-D legality. If legal: single highest-impact add-on, pure eval-time, no retraining.**
   - PR #1848 (newjordan, **0.87980**): "12L SP4096 + brotli + mixed-int + score-first TTT" — ⚠️ **BPB RISK**: sibling PR #1846 (0.87206, 13.49MB) self-closed same day with no explanation. No community BPB verification. Pattern matches prior BPB bug cases. Do NOT implement.
   - PR #1850 (someone114514, **1.00495**): Strict Full-Val Byte PPM Mixture, 15.997MB (2,567 bytes under cap), score-before-update documented. Earlier filing than PR #1857. **Watch for organizer ruling.**
@@ -146,9 +149,14 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 **Best open with SLOT**: ~1.0616 val_bpb (PR #1647, powerpratik, SLOT-4) — no reviews yet
 **Best open (illegal)**: 1.0429 (PR #1735, pre-quant TTT)
 **Issue #1604 (CaseOps ruling)**: **NO @valerio-oai response — 14 days**. Do NOT wait. Proceed with clean legal stack NOW.
-**Target**: Beat 1.0810 merged SOTA by >=0.005 nats → need **≤1.0760 bpb**. Best reachable (legal, no CaseOps): ~1.064–1.068 (clean stack #1787 base + #1586 + #1667 with BOS fix + #1560 + #1727 + LoRA-TTT warm-start A + Polar Express NS + MIN_LR). **3 days to deadline (Apr 30). FINAL GPU RUN WINDOW.**
+**Target**: Once BOS-fix organizer branch merges (imminent): **≤1.0558** to beat 1.0608 SOTA by 0.005 nats. Fallback if branch 1 merges only: ≤1.0658. Fallback if no merge: ≤1.0760. **1 day to deadline (Apr 30). ABSOLUTE LAST WINDOW.**
 
-**CRITICAL LEGALITY UPDATES**:
+**CRITICAL LEGALITY UPDATES (Apr 29)**:
+- **CaseOps IS LEGAL** — Organizer's pending BOS-fix branch explicitly includes PRs #1729, #1736, #1769, #1787 (all CaseOps) as valid leaderboard records. Issue #1604 doesn't need a ruling — the organizer branch confirms legality by inclusion.
+- **SmearGate BOS fix IS REQUIRED** — PR #1855 (top new record, 1.0608) uses it. Any SmearGate implementation without `mask = (current_token != BOS_TOKEN_ID)` has cross-document data leak.
+- **Tap-In V6 IS LEGAL** — PR #1518 included as record in organizer branch.
+- **Doc-Independent LoRA TTT IS LEGAL** — PR #1530 included as record in organizer branch.
+- **PPM-D STILL NO RULING** — @valerio-oai raised two specific concerns on PR #1835: (1) only 3M/40.5M tokens scored; (2) byte-loss distribution may violate autoregressivity. Do NOT implement before deadline.
 - **PR #771 REJECTED (2026-03-27)** — Our AdamW TTT 30ep was train-then-score. All 30-epoch TTT results void.
 - **N-gram hash cache ILLEGAL** — PRs #727, #741 closed. PR #758: MatoTeziTanka (Apr 12) flagged XOR hash key includes target token = same illegality as #727. Effectively dead. PR #731 open (dense count tables + Laplace smoothing, reviewer says "LOOKS CLEAN", awaiting 3rd seed).
 - **N-gram Tilt IS LEGAL (PR #1420)** — Normalized via softmax Z. **⚠️ PR #1420 has causality bug — use PR #1437's corrected implementation.**
@@ -162,7 +170,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 - **Casefold Tokenizer (PR #1578, #1585)**: LEGALITY DEBATED (Apr 13) — modifying validation corpus bytes via case normalization may constitute invalid benchmark manipulation. Await @valerio-oai ruling before implementing.
 - **Per-Layer Adaptive GPTQ (PR #1586)**: NO LEGALITY FLAGS — safe config change, implement immediately.
 
-**Current best-stack approach (PR #1787 as new base, Apr 27 update)**:
+**Current best-stack approach (PR #1855 as new base, Apr 29 update — CaseOps NOW CONFIRMED LEGAL)**:
 1. **SP8192 vocab** — beats SP4096 by ~0.009 bpb [merged SOTA]
 2. **Triple Loop (17 virtual layers)** — layers 4-5 repeated 3×, activated at 0.35× training [merged SOTA]
 3. **Parallel Residuals (layers 7-10)** — GPT-J style [merged SOTA]
@@ -179,8 +187,10 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 14. **Attention Output Gate + SmearGate with BOS fix (PR #1667 + #1855/#1851 fix)** — 1,056 extra params (12×8×11 heads); multiplicative per-head gate init to zero; **CRITICAL: mask prev-token term where current_token==BOS to prevent cross-document leak**; backed by arXiv:2505.06708
 15. **MP-SGD TTT 4 phases (PR #1727)** — score-first each phase; stackable
 16. **TMA Megakernel (Triton TMA fused MLP)** — PR #1555, +10.5% throughput = ~200 extra steps — add after base validated
-17. **CaseOps bijective tokenizer** — **Issue #1604 — 14 days NO ruling. Do NOT implement. Use clean legal stack.**
-18. **PPM-D byte mixture (PR #1854/#1850/#1835)** — ⚠️ **UNRULED** — if organizer approves before Apr 30, add as pure eval-time layer (no retraining). Order-5 PPM-D with binary-λ gate; score-before-update; update after each byte. dexhunter independently confirmed technique at 1.0322 before self-closing.
+17. **CaseOps bijective tokenizer** — **NOW CONFIRMED LEGAL** (organizer pending branch includes #1729/#1736/#1769/#1787 as valid records). Lossless case-factoring: TITLE/ALLCAPS/CAPNEXT/ESC control tokens; BPB on original UTF-8 via byte sidecar. IMPLEMENT.
+18. **LQER Asymmetric** — PR #1797/#1855; low-rank quantization error reconstruction on top of GPTQ. Confirmed in new SOTA (1.0608).
+19. **lrzip compression** — PR #1855 uses lrzip for artifact compression. Enables fitting all of the above in 16MB.
+20. **PPM-D byte mixture (PR #1854/#1850/#1835)** — ⚠️ **UNRULED + CONCERNS RAISED** — @valerio-oai flagged PR #1835 for partial data (3M/40.5M tokens) and autoregressivity question in byte-loss distribution. Do NOT implement. No safe window before Apr 30.
 
 **Key reference PRs**: #1493 (merged SOTA 1.0810), #1769 (1.06453, dexhunter, best CaseOps — await ruling), #1771 (1.06513, bigbag, CaseOps+Depth Curriculum+LoRA-TTT improvements — await ruling), #1667 (1.07139, Attention Output Gate+SmearGate — clean, stack on #1586), #1767 (1.07209, renqianluo, LoRA-TTT warm-start A+alpha=144 — appears legal), #1586 (1.07493, per-layer GPTQ — implement now), #1560 (1.07406, best open safe — VarLen+Doc-TTT), #1584 (1.0752, systems opt — fused Muon/EMA/prealloc), #1555 (1.07636, TMA Megakernel+Tap-In), #1437 (1.08091, causal-fixed N-gram Tilt kernel — use this), #1413 (1.08279, SP8192+Legal TTT), #1334 (1.0897, arch reference)
 
@@ -481,3 +491,12 @@ _Updated: 2026-04-26 (v19.0 — Scylla officially removed by OpenAI; PR #1813 de
 124. **The final 3-day window is the last realistic GPU run opportunity.** Competition closes Apr 30. A GPU run launched today (Apr 27) on 8xH100 has exactly 1 iteration cycle left before deadline. File the PR by Apr 28–29 to allow 1–2 days for organizer review. Do not start a new architecture experiment — execute the validated clean legal stack.
 
 _Updated: 2026-04-27 (v20.0 — PPM-D confirmed by dexhunter at 1.0322; SmearGate BOS bug fix required; PR #1848 BPB risk (sibling #1846 closed same day); PR #1858 partial data warning; 3 days remaining — LAST GPU WINDOW)_
+
+### Session 24 (2026-04-29)
+125. **CRITICAL: Organizer has 14 pending records queued in branch `codex/update-parameter-golf-leaderboard-with-bosfix`, not yet merged to main.** Verified via `git diff upstream/main upstream/codex/update-parameter-golf-leaderboard-with-bosfix`. New SOTA when merged: **1.0608** (codemath3000, PR #1855). New target: **≤1.0558**. This branch includes all CaseOps PRs and all SmearGate BOS-fix PRs.
+126. **CaseOps bijective tokenizer is now CONFIRMED LEGAL by organizer action.** The BOS-fix pending branch includes PRs #1729, #1736, #1769, and #1787 — all CaseOps submissions — as valid leaderboard records. No need to wait for Issue #1604. Implement CaseOps immediately in the GPU run stack.
+127. **Tap-In V6 (abaybektursun, PR #1518, 1.0739) is CONFIRMED LEGAL.** Included in both pending organizer branches. The "legality unconfirmed" caveat is now resolved. The document-local prefix n-gram nudge is valid.
+128. **PPM-D has organizer concerns raised on the leading submission.** @valerio-oai commented on PR #1835: (1) eval only covered 3M/40.5M tokens; (2) byte-loss distribution may violate autoregressivity. With 1 day to deadline and no ruling, PPM-D is not safe to implement. The technique is real (dexhunter validated at 1.0322) but the legality gate will not clear before competition close.
+129. **The competition's final confirmed-legal best stack is now fully defined**: CaseOps + SmearGate BOS fix + Polar Express NS + MIN_LR=0.10 + SparseAttnGate + FusedCE + LQER Asymmetric + LoRA-TTT warm-start A + alpha=144 + WD=2.0 (fused CE requires WD=2.0, not 1.0) + lrzip compression. Target: ~1.052–1.058 bpb.
+
+_Updated: 2026-04-29 (v21.0 — organizer branches reveal CaseOps LEGAL + 14 pending records; new SOTA 1.0608 imminent; new target ≤1.0558; PPM-D concerns raised by valerio-oai; 1 day remaining — ABSOLUTE LAST WINDOW)_

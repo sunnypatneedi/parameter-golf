@@ -1,3 +1,162 @@
+# Parameter Golf Daily Research - 2026-04-29
+
+## PR #771 STATUS: CLOSED (ILLEGAL — no change)
+
+@valerio-oai ruling (2026-03-27): train-then-score AdamW TTT 30ep = instant disqualification. Permanent. Score of 1.0705 is void.
+
+---
+
+## N-GRAM PR STATUS
+
+- **PR #727**: CLOSED — permanent (illegal hash cache, target token in key).
+- **PR #758**: OPEN but dead — XOR hash key includes target token (flagged Apr 12). No fix.
+- **PR #731** (Hedge Mixer — dense count tables + Laplace smoothing): OPEN — "LOOKS CLEAN" per reviewer. Seeds 1337 and 2024 still PENDING. No merge. **Deadline is tomorrow — not merging in time.**
+
+---
+
+## Leaderboard
+
+- **Official Merged SOTA (README)**: **1.0810** — bigbag (PR #1493, Apr 9). **Day 20 plateau** — confirmed longest in competition history. No commits to `upstream/main` since Apr 26.
+- **CRITICAL**: Organizer has TWO pending branches with leaderboard updates (see below). Not merged yet.
+- **Our PR #771**: CLOSED/ILLEGAL.
+- **Current target**: ≤1.0760. **If BOS-fix branch merges today: target becomes ≤1.0558.**
+
+---
+
+## CRITICAL: Organizer Pending Leaderboard Updates (NOT YET MERGED)
+
+Confirmed via `git diff upstream/main upstream/codex/*` — two organizer branches contain uncommitted leaderboard changes:
+
+### Branch 1: `codex/update-parameter-golf-leaderboard-p025-worktree` (6 new records)
+
+New SOTA if merged: **1.0708** (renqianluo, PR #1784)
+
+| PR | Author | Score | Technique |
+|----|--------|-------|-----------|
+| **#1784** | renqianluo | **1.0708** | GatedAttn + Alpha-Scaled LoRA + Warm-Start A + WD=1.0 (Apr 23) |
+| **#1667** | MarioPaerle | **1.0714** | SmearGate + Attention Output Gate + Legal TTT (Apr 16) |
+| **#1626** | dexhunter | **1.0719** | VarLen Attention + Fused MLP + Multi-Phase Global SGD TTT (Apr 14) |
+| **#1610** | romeerp | **1.0728** | VarLenAttn + PhasingTTT (Apr 13) |
+| **#1530** | samacqua | **1.0734** | VarLen Attention + Fused MLP + Doc-Independent Legal TTT (Apr 11) |
+| **#1518** | Abay Bektursun | **1.0739** | Asymmetric Two-Lane Parallel Routing + **Tap-In V6** + Legal TTT (Apr 12) |
+
+### Branch 2: `codex/update-parameter-golf-leaderboard-with-bosfix` (14 new records)
+
+New SOTA if merged: **1.0608** (codemath3000, PR #1855)
+
+| PR | Author | Score | Technique |
+|----|--------|-------|-----------|
+| **#1855** | codemath3000 | **1.0608** | BOS-Fixed SmearGate + LQER + SparseAttnGate + 9-Hparam Stack (Apr 27) |
+| **#1851** | aquariouseworkman | **1.0615** | BOS-Fixed SmearGate + LQER Asym + PR1787 + Phased TTT (Apr 27) |
+| **#1787** | nprime06 | **1.0634** | PR #1736 CaseOps + Polar Express NS + MIN_LR + SparseAttnGate + FusedCE + Warm-A TTT (Apr 23) |
+| **#1769** | dexhunter | **1.0645** | CaseOps + MLPClip12 + SmearGate/LoRA-TTT (Apr 22) |
+| **#1736** | dexhunter | **1.0655** | SP8192 + CaseOps + GatedAttn + QuantGate + Loop45 + Phased TTT (Apr 19) |
+| **#1729** | romeerp | **1.0678** | CaseOps Tokenizer + Tapered WD + Phased TTT (Apr 19) |
+| **#1667** | MarioPaerle | **1.0714** | SmearGate + Attention Output Gate + Legal TTT (Apr 16) |
+| **#1626** | dexhunter | **1.0719** | VarLen Attention + Fused MLP + Multi-Phase Global SGD TTT (Apr 14) |
+| **#1610** | romeerp | **1.0728** | VarLenAttn + PhasingTTT (Apr 13) |
+| **#1530** | samacqua | **1.0734** | VarLen Attention + Fused MLP + Doc-Independent Legal TTT (Apr 11) |
+| **#1518** | Abay Bektursun | **1.0739** | Asymmetric Two-Lane Parallel Routing + Tap-In V6 + Legal TTT (Apr 12) |
+| **#1584** | codemath3000 | **1.0752** | Improved Parallel Residuals + Systems Optimization (Apr 13) |
+| **#1529** | msisovic | **1.0758** | Improved Parallel Residuals + CUTLASS EVT (Apr 11) |
+| **#1514** | dexhunter | **1.0798** | SP8192 + Muon 0.97 + Legal Score-First TTT (Apr 9) |
+
+**Implications of branch 2 merge (more likely given it's the comprehensive update)**:
+- **CaseOps IS LEGAL** — PRs #1729, #1736, #1769, #1787 all confirmed as leaderboard records by organizer
+- **SmearGate BOS fix IS REQUIRED** — PR #1855 (top entry) uses it; organizer including it confirms the fix matters
+- **Tap-In V6 IS LEGAL** — PR #1518 confirmed as record
+- **Doc-Independent LoRA TTT IS LEGAL** — PR #1530 confirmed as record
+- **New target if branch 2 merges: ≤1.0558** (beat 1.0608 by 0.005 nats)
+
+---
+
+## What Changed Since Apr 28 (GitHub)
+
+### New PRs opened today (Apr 29)
+
+| PR | Author | Score | Technique | Notes |
+|----|--------|-------|-----------|-------|
+| **#1938** | lijuncheng16 | **1.0713** | PR #1851 base + Cap Tokenizer + LQER + Global TTT | CaseOps variant; competitive |
+| **#1936** | hilbertmeng | **1.0769** | MUDD Connections + SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain | New architecture technique |
+| **#1935** | vimeto | **1.05997** | PR #1855 + TTT_LORA_RANK=56 | Stacks on BOS-fix base; 1.05997 is notable |
+| **#1934** | liujshi | **1.05993** | SP8192 CaseOps + TTT + GPTQ + LRZIP | Competitive final-day submission |
+| **#1933** | deborahnelson8788726 | **0.99145** | SP8192 + PPM byte mixer | ⚠️ PPM-D — no organizer ruling |
+| **#1929** | davie2009kh | **0.94569** | SP8192 + SLOT scored-position + cross-batch EMA warmup | ⚠️ SLOT flagged for pre-quant AdamW TTT (score-before-update violation alleged by @anmarhindi). Do NOT implement. |
+| **#1926** | bigbag | **1.06844** | SP8192 PR #1874 + Optimized Hyperparameters | bigbag's latest — above new BOS-fix SOTA |
+| **#1925** | simon-marcus | **1.06049** | CaseOps + Matrix-LR 0.028 + Phased TTT 3500 | Competitive |
+| **#1923** | jorge-asenjo | **1.06577** | SP8192 #1855 Base + Asymmetric Logit Rescale | BOS-fix base |
+
+### PPM-D Status (NO RULING — competition closing tomorrow)
+
+| PR | Author | Score | Status | Organizer Notes |
+|----|--------|-------|--------|-----------------|
+| **#1854** | ndokutovich | **0.90236** | OPEN | No organizer comment |
+| **#1850** | someone114514 | **1.00495** | OPEN | No organizer comment |
+| **#1835** | anmarhindi | **1.00136** | OPEN | **@valerio-oai raised 2 concerns**: (1) only 3M/40.5M tokens eval'd; (2) byte-loss distribution may violate autoregressivity |
+| **#1933** | deborahnelson8788726 | **0.99145** | OPEN | No reviews yet |
+
+**Issue #1872** (PPM-D legality): OPEN, no @valerio-oai ruling. Core question: is Σ in Issue #1017 C2 the SP8192 token alphabet or byte alphabet? **No ruling will come before deadline. Do NOT implement PPM-D.**
+
+**@valerio-oai's concerns on PR #1835 are significant**: Partial-data eval (3M vs 40.5M tokens) means the reported score is incomparable. Autoregressivity concern is unresolved. Even if fixed technically, no ruling means no safe implementation window before Apr 30.
+
+---
+
+## New Research Papers
+
+### arXiv:2505.23884 — "Test-Time Training Done Right" (LaCT, May 2025)
+- Large-chunk TTT: 2K–1M token chunks, massive hardware utilization improvement. Non-linear state size up to 40% of model params.
+- **Relevance**: PR #1530 (Doc-Independent LoRA TTT) and PR #1626 (Doc-TTT) are LaCT-style. Both are confirmed legal by pending organizer branch.
+- **Action**: No implementation needed — we'd stack on confirmed legal PR bases.
+
+### "Loop, Think, & Generalize" (arXiv:2604.07822)
+- Curriculum learning in looped transformers: recurrence depth increases with training stages. Aligns with PR #1756 (Recurrence Depth Curriculum).
+- Confirms arXiv:2604.15259 outer normalization stabilizes fixed-point convergence in loop.
+- **Action**: If CaseOps + Recurrence Depth Curriculum in confirmed-legal PRs: outer norm at loop boundary is ~1-3 lines.
+
+---
+
+## Recommended Actions (FINAL DAY)
+
+**Competition closes TOMORROW Apr 30. This is the absolute last action window.**
+
+### Scenario A: BOS-Fix Branch Merges Today (likely — organizer prepared it)
+- New SOTA: **1.0608** (codemath3000, PR #1855)
+- New target: **≤1.0558**
+- Required stack: PR #1855 base (BOS-fixed SmearGate + LQER + SparseAttnGate + lrzip) + CaseOps (#1736/#1769 stack) + Polar Express NS + MIN_LR + Warm-A TTT WD=2.0
+- Achievable: ~1.052–1.058 if clean stack executes
+- **Time remaining for GPU run**: 12–18 hours if launched immediately
+
+### Scenario B: Only Branch 1 Merges (6 records, SOTA 1.0708)
+- New target: **≤1.0658**
+- Required stack: PR #1784 base + SmearGate BOS fix + #1787 techniques
+- Easier to achieve, more margin
+
+### Scenario C: No Merge (current 1.0810 holds as final SOTA)
+- Target: ≤1.0760
+- Stack confirmed working from prior research
+
+**Regardless of scenario: EXECUTE NOW**
+1. Launch GPU run on 8xH100 with the PR #1855 base stack:
+   - CaseOps (now confirmed legal by organizer pending branch)
+   - SmearGate **with BOS fix** (mask prev-token term where `current_token == BOS_TOKEN_ID`)
+   - Polar Express NS + MIN_LR=0.10 (PR #1787)
+   - Per-Layer Adaptive GPTQ MLP=12σ/Attn=13σ + int7 Emb@15σ (PR #1586)
+   - LQER Asymmetric (PR #1797/#1855)
+   - LoRA-TTT warm-start A + alpha=144 + **WD=2.0** (not 1.0 — PR #1886 fused-CE instability fix)
+   - lrzip compression
+2. File PR immediately upon run completion (don't wait for 3 seeds first)
+3. **DO NOT implement**:
+   - PPM-D (organizer raised concerns on #1835; no ruling)
+   - PR #1929 SLOT (flagged score-before-update violation)
+   - Pre-quant TTT (any form)
+   - PR #1848 (BPB risk pattern)
+
+---
+
+*Research session: 2026-04-29 | Days to deadline: 1 (FINAL DAY) | EXECUTE IMMEDIATELY*
+
+---
+
 # Parameter Golf Daily Research - 2026-04-28
 
 ## PR #771 STATUS: CLOSED (ILLEGAL — no change)
