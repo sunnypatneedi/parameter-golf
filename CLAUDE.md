@@ -112,11 +112,27 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: **1.0810 val_bpb** (bigbag, PR #1493, 2026-04-09) — Day 20 plateau. **IMMINENT CHANGE**: Organizer has prepared two pending branches (not yet merged as of Apr 29):
-- `codex/update-parameter-golf-leaderboard-p025-worktree`: 6 new records, new SOTA 1.0708 (renqianluo, PR #1784)
-- `codex/update-parameter-golf-leaderboard-with-bosfix`: 14 new records, new SOTA **1.0608** (codemath3000, PR #1855) — includes CaseOps PRs (confirming CaseOps LEGAL), SmearGate BOS fix, Tap-In V6, Doc-Independent LoRA TTT
-- **When BOS-fix branch merges, new target becomes ≤1.0558.**
-**Best open legal PRs (Apr 29 update)**:
+**Merged leaderboard SOTA**: **1.0611 val_bpb** (codemath3000, PR #1855, 2026-04-27) — UPDATED Apr 30. Organizer pending branches fully merged. 12 new records now in main. Previous SOTA was 1.0810 (PR #1493). **New target: ≤1.0561** (beat by 0.005 nats).
+
+Top merged records (Apr 30 confirmed):
+1. 1.0611 — codemath3000 (PR #1855): SP8192 + LQER Asym + SparseAttnGate + BOS-Fixed SmearGate + 9-hparam greedy + lrzip
+2. 1.0613 — aquariouseworkman (PR #1851/#1868): SmearGate BOS Fix + PR#1787 base + LQER Asym + Phased TTT
+3. 1.0634 — nprime06 (PR #1787): CaseOps + Polar Express NS + MIN_LR=0.10 + SparseAttnGate + FusedCE + Warm-A TTT
+4. 1.0645 — dexhunter (PR #1769): CaseOps + MLPClip12 + SmearGate + LoRA-TTT
+5. 1.0655 — dexhunter (PR #1736): CaseOps + GatedAttn + QuantGate + Loop45 + Phased TTT
+6. 1.0678 — romeerp (PR #1729): CaseOps + Tapered WD + Phased TTT
+7. 1.0714 — MarioPaerle (PR #1667): SmearGate + Attention Output Gate + Legal TTT
+8. 1.0719 — dexhunter (PR #1626): VarLen Attn + Fused MLP + Multi-Phase Global SGD TTT
+
+**Best open PRs (Apr 30 — FINAL DAY):**
+  - PR #1991 (joshuaswanson, **0.94290**): Byte-PPM Mixer order-5, tuned gate — score-first documented. Issue #1872 open for legality ruling. Do NOT implement before ruling.
+  - PR #1987 (TimS-ml, **1.06184**): MHA (8 KV heads) + PR#1855 9-hparam stack + LeakyReLU 0.3 — appears clean. Only 0.0007 above merged SOTA; does NOT beat by required 0.005.
+  - PR #1967 (ndokutovich, **1.05851**): V21 + N-gram Tilt + LeakyReLU 0.3 — 172s hint precompute vs 600s eval budget is open question (Issue #677). If timing ruled compliant, this would beat SOTA by 0.0050 exactly.
+  - PR #1992 (jamesEmerson112, **1.0511**): **ILLEGAL** — PreQuantTTT 21ep, flagged by reviewer.
+  - PR #1972 (BharathSShankar, **1.03983**): **Likely ILLEGAL** — "PreQuantTTT" in title.
+  - PR #1854 (ndokutovich, **0.90236**): PPM-D byte mixture — **NO RULING**. Issue #1872 open. Do NOT implement.
+
+**Best open legal PRs (Apr 29 update — now superseded by Apr 30 merges):**
   - PR #1854 (ndokutovich, **0.90236**): PPM-D byte mixture on PR #1797 base — score-first, Issue #1017 compliant (causality + normalized + score-before-update + single pass), 15.95MB. **WATCH for organizer ruling on PPM-D legality. If legal: single highest-impact add-on, pure eval-time, no retraining.**
   - PR #1848 (newjordan, **0.87980**): "12L SP4096 + brotli + mixed-int + score-first TTT" — ⚠️ **BPB RISK**: sibling PR #1846 (0.87206, 13.49MB) self-closed same day with no explanation. No community BPB verification. Pattern matches prior BPB bug cases. Do NOT implement.
   - PR #1850 (someone114514, **1.00495**): Strict Full-Val Byte PPM Mixture, 15.997MB (2,567 bytes under cap), score-before-update documented. Earlier filing than PR #1857. **Watch for organizer ruling.**
@@ -500,3 +516,14 @@ _Updated: 2026-04-27 (v20.0 — PPM-D confirmed by dexhunter at 1.0322; SmearGat
 129. **The competition's final confirmed-legal best stack is now fully defined**: CaseOps + SmearGate BOS fix + Polar Express NS + MIN_LR=0.10 + SparseAttnGate + FusedCE + LQER Asymmetric + LoRA-TTT warm-start A + alpha=144 + WD=2.0 (fused CE requires WD=2.0, not 1.0) + lrzip compression. Target: ~1.052–1.058 bpb.
 
 _Updated: 2026-04-29 (v21.0 — organizer branches reveal CaseOps LEGAL + 14 pending records; new SOTA 1.0608 imminent; new target ≤1.0558; PPM-D concerns raised by valerio-oai; 1 day remaining — ABSOLUTE LAST WINDOW)_
+
+### Session 25 (2026-04-30 — FINAL DAY)
+130. **Merged SOTA is now 1.0611 (codemath3000, PR #1855) — organizer pending branches fully merged.** Git log confirms 12+ new records merged, including all CaseOps PRs and SmearGate BOS-fix PRs. Previous SOTA 1.0810 (PR #1493) is now 9th place. New target: ≤1.0561.
+131. **PR #1987 (TimS-ml, 1.06184) is a clean final-day filing — but does NOT beat SOTA by 0.005.** MHA (8 KV heads, from GQA) + PR#1855 9-hparam stack + LeakyReLU 0.3. Only 0.0007 bpb above merged SOTA. Not a viable SOTA claim.
+132. **PR #1967 (ndokutovich, 1.05851) is the most interesting new filing — timing legality is the only gate.** V21 + N-gram Tilt + LeakyReLU 0.3 on PR #1945 base. If the 172s hint-precompute counts toward the 600s eval budget, it may be non-compliant. If ruled similar to model decompression (excluded from budget), it's clean. Would beat SOTA by exactly 0.005 nats.
+133. **PR #1992 (jamesEmerson112, 1.0511) and PR #1972 (BharathSShankar, 1.03983) are both ILLEGAL.** Both use PreQuantTTT — 21ep pre-quant AdamW TTT. Same violation as PRs #1735/#1423/#1416/#1408/#1351. Reviewers flagged PR #1992 explicitly.
+134. **PR #1991 (joshuaswanson, 0.94290) — Byte-PPM Mixer — opens Issue #1872 for legality.** Score-first documented and PPM_T/H/L gate tuned offline on training data. Issue #1872 is specifically for this PPM cluster (PR #1850/#1854). No @valerio-oai response as of today. Competition closes today; ruling cannot arrive in time. Do NOT implement.
+135. **PR #731 (Hedge Mixer, 1.0400) still awaiting seeds — competition closing without merge.** Dense count tables + Laplace smoothing approach confirmed "LOOKS CLEAN" but seeds 1337/2024 never filed. Will likely remain open after competition close. Technique is sound; document for any future challenge.
+136. **Competition is closed as of today (April 30, 2026).** Our only submission (PR #771) was rejected for train-then-score TTT. The final merged SOTA is 1.0611. The techniques that won: CaseOps bijective tokenizer + LQER Asymmetric quantization + SparseAttnGate + SmearGate with BOS fix + Polar Express NS + lrzip compression + LoRA-TTT warm-start A.
+
+_Updated: 2026-04-30 (v22.0 — COMPETITION CLOSED; merged SOTA 1.0611 (PR #1855); 12 new records merged; PR #1967 (1.05851) best legal open, timing pending; PR #1991 (0.94290) PPM-D no ruling; competition ended)_
