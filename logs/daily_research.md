@@ -1,3 +1,80 @@
+# Parameter Golf Daily Research - 2026-05-01 (POST-COMPETITION)
+
+## PR #771 STATUS: CLOSED (REJECTED 2026-03-27)
+
+Same as prior days. No change. Final.
+
+## N-GRAM PR STATUS (Final)
+- **PR #727**: CLOSED — rejected by @valerio-oai (hash key includes target token = eval leakage). Final.
+- **PR #731**: OPEN — competition ended without merge. Seeds 1337/2024 never filed. "LOOKS CLEAN" from reviewer but no organizer action. Technique (dense Hedge Mixer + Laplace) documented as sound.
+- **PR #758**: OPEN but dead — same normalization violation as #727 (XOR key includes target). No organizer action needed; community ruled it out.
+
+## Leaderboard (FINAL — competition closed April 30, 2026)
+| Rank | Score | Author | PR |
+|------|-------|--------|----|
+| 1 | **1.0611** | codemath3000 | #1855 — BOS-Fixed SmearGate + LQER + SparseAttnGate + 9-Hparam + lrzip |
+| 2 | 1.0614 | aquariouseworkman | #1851/#1868 — SmearGate BOS Fix + PR#1787 + LQER Asym + Phased TTT |
+| 3 | 1.0634 | nprime06 | #1787 — CaseOps + Polar Express NS + MIN_LR + SparseAttnGate + FusedCE + Warm-A TTT |
+| 4 | 1.0645 | dexhunter | #1769 — CaseOps + MLPClip12 + SmearGate/LoRA-TTT |
+| 5 | 1.0655 | dexhunter | #1736 — CaseOps + GatedAttn + QuantGate + PhasedTTT |
+| 6 | 1.0678 | romeerp | #1729 — CaseOps + Tapered WD + Phased TTT |
+| 7 | 1.0714 | MarioPaerle | #1667 — SmearGate + Attention Output Gate + Legal TTT |
+| 8 | 1.0719 | dexhunter | #1626 — VarLen Attn + Fused MLP + Multi-Phase Global SGD TTT |
+| 9 | 1.0810 | bigbag | #1493 — SP8192 + 3-Layer Recurrence + Parallel Residuals + Legal TTT |
+
+**Our submission (PR #771): REJECTED.** Final standing: none.
+
+## What Changed (Post-Competition, May 1 2026)
+
+Competition closed April 30. Multiple PRs filed on May 1 — likely for non-record track, research credit, or future reference:
+
+- **PR #2118** (aquariouseworkman, **1.0435**): "Gated XSA + token-only n-gram tilt + LQER + AWQ-lite + asymmetric logit rescale + LeakyReLU 0.3 + no_qv TTT mask + 1-phase score-first TTT." ⚠️ **LEGALITY QUESTIONED**: Reviewer andrewbaggio1 flagged that full n-gram paths (WITHIN_BOOST, WORD_BOOST, AGREE_ADD_BOOST) were active in logs despite "token-only" claim (word_gate=2,891,588 non-zero). Author acknowledged this. Score may void if full n-gram paths are illegal. Post-deadline anyway.
+- **PR #2124** (vaibhavmishra1, **1.05933**): CaseOps + Gated XSA + N-gram Tilt + LQER + AWQ-lite + g32/top4 retune. Combinatorial stack of public techniques. Post-deadline.
+- **PR #2101** (OnlyJundong, **1.05845**): AWQ-lite + AsymLogit + GradCentral. Post-deadline.
+- **PR #2100** (someone114514, **1.05807**): LongCtx No-QV Prefix3500. Post-deadline.
+- **PR #2121** (Kbediako, **1.06099**): StageB v2 CaseOps TTT. Post-deadline.
+- **PR #2119** (dexhunter, non-record): PR #1953 K+O-only TTT + QK_GAIN_INIT=5.35 — dexhunter's own ablation/research filing.
+
+**Issue #1872 (PPM-D legality)**: No @valerio-oai ruling. Competition closed without resolution. PPM-D technique remains unruled for legality.
+
+**Winning techniques stack (final analysis)**:
+CaseOps bijective tokenizer + LQER Asymmetric + SparseAttnGate + SmearGate with BOS fix + Polar Express Newton-Schulz + MIN_LR=0.10 + lrzip compression + LoRA-TTT warm-start A + alpha=144
+
+## New Research Papers
+
+- **arXiv:2505.20633** — "Test-Time Learning for Large Language Models" (May 2026). TTL framework minimizing input perplexity on unlabeled test data for self-supervised domain adaptation. Could refine score-first TTT objective alignment. Complexity: medium (new loss function).
+- **arXiv:2604.06169** — "In-Place Test-Time Training" (Apr 7, 2026). NTP-aligned objective for TTT (not reconstruction loss). 4B-param model outperforms standard TTT approaches on long contexts up to 128k. Distinguishes from Session 3's failed in-place attempt (which used reconstruction loss on MLP projections). Complexity: medium.
+- **arXiv:2505.23884** — "LaCT: Test-Time Training Done Right" (2025). Large-chunk TTT (2K–1M tokens) for hardware utilization. Our Doc-TTT (PR #1560, chunk=48) is a smaller-chunk variant. Potential: larger chunks may improve TTT quality.
+- **arXiv:2601.02875** — "Revisiting Data Compression with Language Modeling" (Jan 2026). Shows 3-bit representation achieves only slight compression-rate drop vs higher precision. Validates aggressive quantization direction.
+- **arXiv:2402.02446** — LQER (Low-Rank Quantization Error Reconstruction). Confirmed ICML 2024 publication. Asymmetric variant used in competition-winning PR #1855 and #1797. Well-established technique.
+
+## HuggingFace / Community Discoveries
+
+No notable HuggingFace blog posts or model releases directly relevant to Parameter Golf post-competition. Community activity is now concentrated in the GitHub PR thread itself.
+
+## Status Summary (Post-Competition)
+
+| Item | Status |
+|------|--------|
+| Competition | **CLOSED** (April 30, 2026) |
+| Final Merged SOTA | **1.0611** (codemath3000, PR #1855) |
+| Our best submission | **REJECTED** (PR #771, train-then-score) |
+| PR #731 (Hedge Mixer) | Open, seeds never filed, effectively dormant |
+| Issue #1872 (PPM-D) | No ruling — competition ended without resolution |
+| Post-deadline filings | 6+ PRs filed May 1 (non-record or late research) |
+
+## Recommended Action
+
+**Competition is over.** No SOTA-chasing actions are needed or possible within the official window.
+
+Post-competition learning priorities:
+1. **Study PR #1855 code** (winning submission) — extract the full CaseOps + LQER Asym + SparseAttnGate + SmearGate BOS-fix + lrzip stack for reference in future challenges.
+2. **Monitor PR #2118** (aquariouseworkman, 1.0435) — if organizers rule the n-gram paths legal post-competition, "Gated XSA + N-gram Tilt + LQER + AWQ-lite" stack represents a ~0.018 bpb improvement over the winning submission. Worth understanding for future competitions.
+3. **Read arXiv:2604.06169** (In-Place TTT with NTP-aligned objective) — cleanest TTT improvement not yet in competition stack.
+4. **Monitor Issue #1872** — if @valerio-oai ever rules on PPM-D byte mixture, it would define whether the 0.9x BPB scores (PRs #1850, #1854, #1991) were legal paths or not.
+
+---
+
 # Parameter Golf Daily Research - 2026-04-30 (FINAL DAY)
 
 ## PR #771 STATUS: CLOSED (REJECTED 2026-03-27)
