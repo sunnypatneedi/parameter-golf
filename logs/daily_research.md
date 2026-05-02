@@ -1,3 +1,100 @@
+# Parameter Golf Daily Research - 2026-05-02 (POST-COMPETITION DAY 2)
+
+## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
+
+No change. @valerio-oai ruled train-then-score TTT violation. No appeal path.
+
+## N-GRAM PR STATUS (Final)
+- **PR #727**: CLOSED — @valerio-oai: hash key includes target token via XOR. Eval leakage. Final.
+- **PR #731**: OPEN — seeds 1337/2024 never filed. Competition ended. Technique sound (dense Hedge Mixer + Laplace), reviewer said "LOOKS CLEAN", but never merged. Dormant.
+- **PR #758**: OPEN but dead — same XOR target-token violation as #727. No organizer action pending.
+
+## Leaderboard (FINAL)
+| Rank | Score | Author | PR | Techniques |
+|------|-------|--------|-----|------------|
+| 1 | **1.0611** | codemath3000 | #1855 | BOS-Fixed SmearGate + LQER Asym + SparseAttnGate + 9-hparam greedy + lrzip |
+| 2 | 1.0614 | aquariouseworkman | #1851/#1868 | SmearGate BOS Fix + PR#1787 + LQER Asym + Phased TTT |
+| 3 | 1.0634 | nprime06 | #1787 | CaseOps + Polar Express NS + MIN_LR + SparseAttnGate + FusedCE + Warm-A TTT |
+| 4 | 1.0645 | dexhunter | #1769 | CaseOps + MLPClip12 + SmearGate + LoRA-TTT |
+| 5 | 1.0655 | dexhunter | #1736 | CaseOps + GatedAttn + QuantGate + PhasedTTT |
+| 6 | 1.0678 | romeerp | #1729 | CaseOps + Tapered WD + Phased TTT |
+| 7 | 1.0714 | MarioPaerle | #1667 | SmearGate + Attention Output Gate + Legal TTT |
+| 8 | 1.0719 | dexhunter | #1626 | VarLen Attn + Fused MLP + Multi-Phase Global SGD TTT |
+
+No upstream/main commits since Apr 29. Leaderboard frozen.
+
+## What Changed (Post-Competition, May 1–2 2026)
+
+### New post-deadline PRs filed (no official record eligibility):
+
+| PR | Author | Score | Technique | Notes |
+|----|--------|-------|-----------|-------|
+| #2130 | (anonymous) | **1.05670** | Token-Only N-gram Tilt + AsymLogit Rescale + 3 hyperparams from PR#2060 (MATRIX_LR=0.028, LQER_ASYM_GROUP=32, TTT_LORA_LR=8e-5) + NUM_PHASES=1 | Beats SOTA by only 0.00438 (below 0.005 threshold). Artifact 15.95MB. WITHIN_TAU=99.0/WORD_TAU=99.0 disables non-causal channels. AsymLogit Rescale from open PR#1923. |
+| #2135 | codemath3000 | **1.05651** (3-seed) | PR#2130 base + GPTQ_CALIBRATION_BATCHES=32 (vs 16) | Paired t-test verified. −0.00457 vs SOTA — just misses 0.005 threshold. Filed post-deadline. Otherwise clean. |
+| #2138 | (anonymous) | ~~0.979556~~ → **~1.0671** | Lock-In Byte Mixer (PPM-D gate λ=1−sigmoid(25·(PPM_conf−0.9999))) | **CONFIRMED BPB BUG** (@codemath3000): divides by CaseOps-transformed bytes (164,594,398) not raw-text sidecar (151,074,309). Corrected score ~1.0671 — worse than SOTA. Do NOT track. |
+| #2139 | (anonymous) | **1.05749** | TTT Peer-LoRA Ensemble: blend peer docs' trained LoRAs for uncertain tokens (entropy≥0.5 threshold, ~75% activation) | Single seed, author filed "for fun." Novel technique. −0.00106 vs PR#2014 base. |
+| #2140 | (anonymous) | **1.05601** | PR#2014 + LeakyReLU 0.3 + n-gram tilt (in-timer, strict causal) | Flagged by @codemath3000: within-word/word-start n-gram channels gate on `boundary_lut[tok]` (target-token-dependent). Same Rule 1 violation as PR#1420. Post-deadline regardless. |
+| #2141–#2145 | various | mixed | Non-record or post-deadline exploration (MHALM V2 1.3477, CaseOps 1.07134, JEPA ablation, etc.) | Research filings, no competitive relevance. |
+
+### BPB bug pattern note
+PR #2138 is the 7th confirmed BPB bug in this competition (after #1545, #1576, #1687, #1698, PR#1848 risk, PR#1858 partial data). All involve extraordinary score claims later corrected by community review. Pattern: byte denominator manipulation or double-counting.
+
+## New Research Papers (May 2 scan)
+
+### High relevance (future competition)
+
+| Paper | arXiv ID | Date | Key Technique | Impact |
+|-------|----------|------|---------------|--------|
+| Bell Box Quantization (BBQ) | 2603.01599 | ICLR 2026 | First ITO (information-theoretically optimal) + compute-efficient quantization. Hadamard + probability integral transform + uniform quantize. Up to 18 PPL improvement vs SOTA at 1-bit. | High — could replace or supplement GPTQ/LQER pipeline in future challenge. |
+| EntroLLM | 2505.02380 | May 2025 | Entropy coding of quantized weights for edge models. 30% storage savings over uint8, 65% over uint4. | High — additive to lrzip artifact compression; directly relevant to 16MB budget. |
+| In-Place TTT (NTP-aligned) | 2604.06169 | Apr 2026 | NTP-aligned objective for TTT instead of reconstruction loss; chunk-wise score-first updates; outperforms standard LoRA TTT on long contexts. | High — would improve legal TTT quality without legality risk. |
+| Decoupling Tokenization Effects | 2604.27263 | Apr 2026 | Isolates "tokenization bias" — shows different tokenizers produce structurally different BPB distributions. | Medium — theoretical backing for CaseOps/casefold BPB debate. |
+
+### Already tracked / not actionable
+- arXiv:2505.16932 (Polar Express NS): Already in merged SOTA (PR #1787). ✓
+- arXiv:2604.13552 (TF-TTCL): Training-free TTT via contrastive distillation — large-model focused, not applicable
+- arXiv:2505.22857 (NGPU-LM): GPU n-gram LM for ASR context biasing — wrong domain
+- arXiv:2504.04718 (T1): Self-verification for reasoning tasks — not compression-focused
+
+## New Techniques for Future Reference
+
+**AsymLogit Rescale** (PR #2130, open PR #1923):
+- Replace single `logit_softcap=30.0` with two trainable scalars: `softcap_pos`, `softcap_neg`
+- Parameters adapt via TTT global prefix pass
+- Implementation: ~5 lines. Zero legality risk.
+- Estimated gain: unknown standalone; super-additive with n-gram tilt in PR #2130
+
+**TTT Peer-LoRA Ensemble** (PR #2139):
+- After per-document LoRA training, run k−1 extra forwards with peer docs' LoRAs
+- Blend `p = w·p_own + (1−w)·mean(p_peers)` only when predictive entropy ≥ threshold (0.5)
+- ~75% of tokens activate ensemble; confident tokens use own prediction
+- No cross-document information leak (each LoRA trained only on its own doc before scoring)
+- Estimated gain: −0.00106 bpb standalone (small but could stack)
+
+## Status Summary
+
+| Item | Status |
+|------|--------|
+| Competition | **CLOSED** (April 30, 2026) |
+| Final Merged SOTA | **1.0611** (codemath3000, PR #1855) |
+| Our submission | **REJECTED** (PR #771, train-then-score violation) |
+| Upstream commits since close | **0** — no activity |
+| Post-deadline PRs | 10+ filed (non-record); no new techniques that beat SOTA legally |
+| Issue #1872 (PPM-D legality) | No ruling — competition ended unresolved |
+| PR #731 (Hedge Mixer) | Open, dormant — seeds never filed |
+
+## Recommended Action
+
+Competition is over. Priorities for any future challenge:
+
+1. **Study PR #1855 code** — extract full CaseOps + LQER Asym + SparseAttnGate + SmearGate BOS-fix + lrzip stack as the canonical winning template.
+2. **Implement AsymLogit Rescale** (PR #1923/2130) as a cheap addition to any future TTT stack — ~5 lines, no legality risk.
+3. **Read arXiv:2604.06169** (In-Place TTT, NTP-aligned loss) — for improved legal TTT objective.
+4. **Monitor Issue #1872** — if @valerio-oai ever rules on PPM-D, it determines whether the 0.9x BPB scores (PRs #1850, #1854, #1991) were legal paths and whether the technique should be a first-move in the next competition.
+5. **Consider TTT Peer-LoRA Ensemble** (PR #2139) — novel direction with causal soundness; worth a GPU ablation if competing again.
+
+---
+
 # Parameter Golf Daily Research - 2026-05-01 (POST-COMPETITION)
 
 ## PR #771 STATUS: CLOSED (REJECTED 2026-03-27)
