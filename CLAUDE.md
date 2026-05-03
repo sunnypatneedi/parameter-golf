@@ -112,7 +112,22 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Competition Strategy
 
-**Merged leaderboard SOTA**: **1.0611 val_bpb** (codemath3000, PR #1855, 2026-04-27) — UPDATED Apr 30. Organizer pending branches fully merged. 12 new records now in main. Previous SOTA was 1.0810 (PR #1493). **New target: ≤1.0561** (beat by 0.005 nats).
+**COMPETITION CLOSED April 30, 2026. Post-competition audit in progress (May 3).**
+
+**Final Merged SOTA**: **1.0611 val_bpb** (codemath3000, PR #1855) — stable since Apr 29. No upstream/main commits since then.
+
+**Pending Audit (DRAFT PR #2146, grace policy)**: Organizers reviewing 4 post-deadline entries where code was filed pre-cutoff. If merged, effective SOTA drops to **1.05651** (PR #2135: PR#2130 base + GPTQ_CALIBRATION_BATCHES=32). Stack: CaseOps + LQER Asym + SparseAttnGate + SmearGate BOS-fix + AsymLogit Rescale + token-only n-gram tilt + phased LoRA TTT.
+
+**Our status**: PR #771 REJECTED (train-then-score TTT violation). No submission.
+
+**Key post-competition findings (May 1–3)**:
+- **AsymLogit Rescale** (PR #1923/#2130): Two trainable scalars replace fixed logit_softcap. ~5 lines. Appears in V22 stack (PR #1945, 1.05877). Zero legality risk. First-add for future competition.
+- **GPTQ calibration batches**: 16→32 gives ~0.001 bpb. Free win at submission time.
+- **Data overlap bug**: PR #2130 (1.05670) excluded by audit for docs 10,000–49,999 train/val overlap. Verify validation isolation explicitly before filing any future submission.
+- **PR #2138 BPB bug**: 7th BPB bug in competition. Divided by CaseOps-transformed bytes instead of raw sidecar. Corrected 0.979 → 1.067. Always verify denominator against raw-text bytes.
+- **PPM-D (Issue #1872)**: No organizer ruling as of May 3. Competition ended unresolved.
+
+**Previous target**: ≤1.0561 (beat by 0.005 nats). Now moot — competition closed.
 
 Top merged records (Apr 30 confirmed):
 1. 1.0611 — codemath3000 (PR #1855): SP8192 + LQER Asym + SparseAttnGate + BOS-Fixed SmearGate + 9-hparam greedy + lrzip

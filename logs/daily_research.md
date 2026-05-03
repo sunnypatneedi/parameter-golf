@@ -1,3 +1,91 @@
+# Parameter Golf Daily Research - 2026-05-03 (POST-COMPETITION DAY 3)
+
+## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
+
+No change. Train-then-score TTT violation per @valerio-oai. No appeal path.
+
+## N-GRAM PR STATUS (Final)
+- **PR #727**: CLOSED — hash key includes target token (eval leakage). Final.
+- **PR #731**: OPEN, dormant — seeds 1337/2024 never filed. Competition closed. Dead.
+- **PR #758**: OPEN, dead — same XOR target-token violation as #727.
+
+## Leaderboard
+
+### Current Merged (upstream/main)
+| Rank | Score | Author | PR | Key Stack |
+|------|-------|--------|----|-----------|
+| 1 | **1.0611** | codemath3000 | #1855 | BOS-Fixed SmearGate + LQER Asym + SparseAttnGate + 9-hparam + lrzip |
+| 2 | 1.0614 | aquariouseworkman | #1851/#1868 | SmearGate BOS Fix + PR#1787 + LQER Asym + Phased TTT |
+| 3 | 1.0634 | nprime06 | #1787 | CaseOps + Polar Express NS + MIN_LR + SparseAttnGate + FusedCE + Warm-A TTT |
+| 4 | 1.0645 | dexhunter | #1769 | CaseOps + MLPClip12 + SmearGate + LoRA-TTT |
+| 5 | 1.0655 | dexhunter | #1736 | CaseOps + GatedAttn + QuantGate + PhasedTTT |
+
+No upstream/main commits since Apr 29. Leaderboard frozen at SOTA 1.0611.
+
+### Pending Audit (Draft PR #2146 — NOT merged yet)
+Organizer grace policy: code filed pre-cutoff, results filed post-deadline. Four rows pending:
+| PR | Score | Techniques | Note |
+|----|-------|------------|------|
+| #1945 (V22) | 1.05877–1.05943 | AWQ-lite mixed-precision + AsymLogit Rescale + no_qv TTT masking + seq_len=2816 | 3-seed, all <600s |
+| #1953 | 1.05855 | PR#1945 base + delta unknown | Under audit |
+| #2014 | 1.05759 | PR#1953 base + delta unknown | Under audit |
+| **#2135** | **1.05651** | PR#2130 base + GPTQ_CALIBRATION_BATCHES 16→32 | New top if merged |
+
+If PR #2146 merges, effective SOTA drops to **1.05651** and new target becomes **≤1.05151**.
+
+## What Changed (May 2–3, 2026)
+
+### New Open PRs
+| PR | Author | Score | Technique | Legality |
+|----|--------|-------|-----------|----------|
+| #2149 | YaseenHQ | unknown | SP8192 + RandProj384 tied embeddings + Pairwise-QK Muon | Non-record filing, May 3 |
+| #2130 | TanishGudise | **1.05670** | Token-only n-gram tilt + AsymLogit Rescale + 3 hyperparams (MATRIX_LR=0.028, LQER_ASYM_GROUP=32, TTT_LORA_LR=8e-5) + NUM_PHASES=1 | ⚠️ Reviewer flagged train/val data overlap (docs 10,000–49,999). Excluded by audit. |
+| #2124 | vaibhavmishra1 | **1.05933** | CaseOps + Gated XSA + NgramTilt + LQER g32/top4 + Phased TTT | ⚠️ 3-seed config inconsistency: headline uses third seed from different config. "Not record-ready as submitted." |
+| #2138 | anmarhindi | ~~0.979556~~ → **1.067219** | Lock-In Byte Mixer (PPM-D gate, λ activates only at PPM_conf≥0.9999) | **CONFIRMED BPB BUG** (7th in competition): divides by CaseOps bytes not raw-text sidecar bytes. Corrected score 1.067219 = below SOTA. Do NOT track. |
+
+### Key Technique: AsymLogit Rescale (PR #1923 / #2130)
+- Replace single `logit_softcap=30.0` with two trainable scalars `softcap_pos`, `softcap_neg`
+- Parameters adapt via TTT global prefix pass
+- Implementation: ~5 lines, zero legality risk
+- Used in V22 stack (PR #1945) and post-deadline leader PR #2135
+
+### BPB Bug Tally: 7 confirmed this competition
+Bugs in: PR #1545, #1576, #1687, #1698, #1848 (risk), #1858 (partial data), #2138.
+
+## New Research Papers (May 3 scan)
+
+No new highly relevant papers since May 2 scan. Prior high-priority items still pending:
+
+| Paper | arXiv | Priority |
+|-------|-------|----------|
+| In-Place TTT (NTP-aligned loss) | 2604.06169 | High — read before next competition TTT design |
+| Bell Box Quantization (BBQ) | 2603.01599 | High — ITO quantization; could replace GPTQ/LQER |
+| EntroLLM entropy coding | 2505.02380 | High — additive to lrzip artifact compression |
+| Decoupling Tokenization Effects | 2604.27263 | Medium — theoretical backing for CaseOps BPB debate |
+
+**No new May 2026 competition-relevant papers found in this scan.**
+
+## Status Summary
+
+| Item | Status |
+|------|--------|
+| Competition | **CLOSED** (April 30, 2026) |
+| Final Merged SOTA | **1.0611** (codemath3000, PR #1855) |
+| Pending Audit SOTA | **1.05651** (PR #2135, DRAFT PR #2146, not merged) |
+| Our submission | **REJECTED** (PR #771, train-then-score violation) |
+| Upstream commits since close | 5 — all non-record/notable submissions |
+| Issue #1872 (PPM-D legality) | No ruling — competition ended unresolved |
+
+## Recommended Action
+
+Competition is over. Three actionable items:
+
+1. **Monitor PR #2146** — if the grace-policy audit merges, it reveals: (a) V22 lineage (AWQ-lite + AsymLogit Rescale) is the actual winning stack; (b) AsymLogit Rescale delivers ~0.003 bpb standalone; (c) GPTQ calibration batch count matters at the margin (0.001 bpb).
+2. **Read arXiv:2604.06169** (In-Place NTP-aligned TTT) — directly applicable to future competition legal TTT design.
+3. **Document lesson**: Data overlap audit (docs 10,000–49,999 train/val overlap) invalidated PR #2130 despite otherwise clean technique. Any future competition needs explicit validation-set isolation check before filing.
+
+---
+
 # Parameter Golf Daily Research - 2026-05-02 (POST-COMPETITION DAY 2)
 
 ## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
