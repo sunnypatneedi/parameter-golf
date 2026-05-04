@@ -1,3 +1,94 @@
+# Parameter Golf Daily Research - 2026-05-04 (POST-COMPETITION DAY 4)
+
+## Competition Status: CLOSED (Apr 30, 2026)
+Post-competition audit in progress via Draft PR #2146. Competition results being finalized.
+
+## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
+
+No change. @valerio-oai ruling stands: train-then-score TTT violation (30 epochs AdamW on val tokens before scoring). No appeal path. Invalidated score: 1.0705 val_bpb.
+
+## Audit PRs (DRAFT — grace policy)
+
+- **PR #2146** (cocohearts, organizer — OPEN/DRAFT): "Update leaderboard with May 1 audited rows." Grace policy defined: code/scaffold filed pre-cutoff; results/logs filed post-deadline allowed. 22 reactions. PR #2135 included; PR #2130 excluded (data overlap). Status as of May 4: still DRAFT, not merged.
+- **PR #2135** (codemath3000 — OPEN): val_bpb 1.05651 (3-seed mean). Change vs PR #2130: GPTQ_CALIBRATION_BATCHES 16→32. Improvement vs merged SOTA (PR #1855): -0.00457 bpb / -0.01000 nats (~2× threshold). Cocohearts confirmed grace-policy inclusion. Not yet merged into main.
+- **PR #2130** (TanishGudise — CLOSED): val_bpb 1.05670. EXCLUDED by audit — train/val data overlap (docs 10,000–49,999 overlap with 50k-doc validation split, matching fingerprint from prepare_caseops_data.py with val-docs=10000). Placed in same category as PR #2018. Score void.
+
+## PPM-D Issue #1872 Status
+
+No @valerio-oai ruling found as of May 4. Issue remains open with only the initial post from andrewbaggio1 (Apr 27, 2026) visible. No organizer response. Competition ended unresolved. PPM-D legality remains undetermined.
+
+## Leaderboard (as of 2026-05-04)
+
+### Merged SOTA (upstream/main) — UNCHANGED since Apr 29
+| Rank | Score | Author | PR | Key Stack |
+|------|-------|--------|----|-----------|
+| 1 | **1.0611** | codemath3000 | #1855 | BOS-Fixed SmearGate + LQER Asym + SparseAttnGate + 9-hparam + lrzip |
+| 2 | 1.0614 | aquariouseworkman | #1851/#1868 | SmearGate BOS Fix + PR#1787 + LQER Asym + Phased TTT |
+| 3 | 1.0634 | nprime06 | #1787 | CaseOps + Polar Express NS + MIN_LR + SparseAttnGate + FusedCE + Warm-A TTT |
+| 4 | 1.0645 | dexhunter | #1769 | CaseOps + MLPClip12 + SmearGate + LoRA-TTT |
+| 5 | 1.0655 | dexhunter | #1736 | CaseOps + GatedAttn + QuantGate + PhasedTTT |
+
+- Pending audit SOTA: **1.05651** (PR #2135, if PR #2146 grace policy merges)
+- Our PR #771: 1.0705 — REJECTED
+
+### Upstream commits since May 3
+git log shows most recent commits are non-record/notable submissions (Mamba3-SSM hybrids, MHALM V2, adapter MLPs, XNOR-net, MDLM diffusion, etc.). No new leaderboard record merges since Apr 29.
+
+## What Changed (GitHub — since May 3)
+
+### New PRs (post-competition filing)
+| PR | Author | Score | Technique | Notes |
+|----|--------|-------|-----------|-------|
+| #2155 | divagr18 | N/A (non-record) | SP8192 + Mamba3 SSM hybrid | Non-record submission, May 4 |
+| #2153 | rixhavraj | claimed ~0.9627 | "Balanced Peak Architecture" 12L 768-dim ~7.2M params, 36-hour optimization | No reviews yet; claimed score looks extraordinary — high BPB-bug risk per competition history. Do NOT track until community-verified. |
+| #2149 | YaseenHQ | negative result | SP8192 + RandProj384 tied embeddings + Pairwise-QK Muon | Self-labeled negative result, May 3 |
+| #2146 | cocohearts | N/A | Leaderboard audit update (draft) | Organizer PR, see Audit section |
+| #2145 | aquemy | 1.3477 | MHALM V2 | Non-record (above baseline) |
+
+**PR #2153 (0.9627 claim) assessment**: No reviews, no community verification, "balanced architecture" with 7.2M params — the claimed jump from 1.0611 to 0.9627 (-0.098 bpb) with no novel technique description matches BPB-bug pattern seen 7 times this competition. Treat as likely BPB bug until independently verified.
+
+## New Research Papers (May 1–4)
+
+| Paper | arXiv | Date | Key Technique | Relevance to Future Competition |
+|-------|-------|------|---------------|--------------------------------|
+| **How Much Is One Recurrence Worth? Iso-Depth Scaling Laws for Looped LMs** | 2604.21106 | Apr 27, 2026 | 116-run iso-depth sweep; at 4 recurrences, 410M looped = 580M non-looped quality but costs 1B training compute; hyperconnections between loop states substantially improve loops; truncated BPTT weakens loop gradient quality | HIGH — direct quantitative guidance for tuning our Triple Loop depth and activation point. Hyperconnections are new and not yet in any competition PR. |
+| **Hyperloop Transformers** | 2604.21254 | Apr 23, 2026 | Begin+Middle+End block organization; hyper-connections expand residual stream to matrix-valued streams applied only after each loop; outperforms depth-matched Transformer with ~50% fewer parameters; improvement persists post-quantization | HIGH — "50% fewer params, same quality" is directly applicable. Hyper-connections add minimal params. Post-quant robustness is key for 16MB target. |
+| **Test-Time Training Done Right (LaCT)** | 2505.23884 | May 29, 2025 | Large Chunk TTT: 2K–1M token chunks; dramatically improves GPU utilization (up to 70% on A100 vs <5% for existing TTT); scales nonlinear state size to 40% of model params; no custom kernels required | HIGH — dexhunter's Doc-TTT (PR #1560) is likely LaCT-inspired. Full LaCT at our scale could improve TTT quality vs ≤3ep score-first limit. Code: github.com/a1600012888/LaCT |
+| **Test-Time Learning for Large Language Models** | 2505.20633 | May 2025 | TTT framework for LLMs; separate training objective for fast-weight adaptation; reduces perplexity across diverse domains | MEDIUM — survey-style; less directly actionable than LaCT |
+| **Intra-Layer Recurrence in Transformers** | 2505.01855 | May 2025 | ILR applies recurrence selectively to individual layers within a single forward pass; allocating more iterations to earlier layers is optimal; accepted at Canadian AI 2025 | MEDIUM — alternative to whole-model loop; earlier-layer recurrence matches what Triple Loop does (layers 4-5). Implementation guidance available on GitHub. |
+| **Stability and Generalization in Looped Transformers** | 2604.15259 | Apr 2026 | Proves outer normalization (LayerNorm/RMSNorm at loop output) produces stable looped regime; enables deeper loops without residual explosion | HIGH — ~1-3 lines of code, may enable depth 4 or earlier activation in Triple Loop. Already in CLAUDE.md as watch item but now confirmed by this paper. |
+
+### Papers from prior scan still pending reading
+| Paper | arXiv | Priority |
+|-------|-------|----------|
+| In-Place TTT (NTP-aligned loss) | 2604.06169 | HIGH |
+| Parcae (stable looped LMs via spectral norm) | 2604.12946 | HIGH |
+| Decoupling Tokenization Effects | 2604.27263 | MEDIUM |
+
+## Status Summary
+
+| Item | Status |
+|------|--------|
+| Competition | **CLOSED** (April 30, 2026) |
+| Final Merged SOTA | **1.0611** (codemath3000, PR #1855) |
+| Pending Audit SOTA | **1.05651** (PR #2135, pending PR #2146 merge) |
+| Our submission | **REJECTED** (PR #771) |
+| PR #2146 audit | DRAFT — not merged |
+| Issue #1872 (PPM-D) | No ruling — ended unresolved |
+| Upstream commits since May 3 | Only non-record/notable submissions |
+
+## Recommended Action
+
+1. **Monitor PR #2146** — still DRAFT as of May 4. If it merges: (a) V22 stack (AsymLogit Rescale + AWQ-lite) is confirmed as the winning unreleased technique; (b) GPTQ calibration 16→32 batches is confirmed as +0.001 bpb; (c) new target for any future competition becomes ≤1.04651 (1.05651 - 0.010 threshold).
+
+2. **Read arXiv:2604.21106 and 2604.21254** — both give quantitative guidance on looped transformer depth optimization that was not available during the competition. Hyperconnections (2604.21254) are particularly novel and appear to have zero competition-PR precedent.
+
+3. **Flag PR #2153 (claimed 0.9627)** as unverified — no community review, extraordinary claim, no novel technique described. Consistent with BPB-bug pattern (7 prior bugs this competition).
+
+4. **Document for future reference**: The grace policy established in PR #2146 (code pre-cutoff, results post-deadline) creates a clear precedent. For any future competition, file code PRs early even if results aren't ready.
+
+---
+
 # Parameter Golf Daily Research - 2026-05-03 (POST-COMPETITION DAY 3)
 
 ## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
