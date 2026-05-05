@@ -1,3 +1,87 @@
+# Parameter Golf Daily Research - 2026-05-05 (POST-COMPETITION DAY 5)
+
+## Competition Status: CLOSED (Apr 30, 2026)
+Audit COMPLETE — PR #2146 merged May 1. Final results official.
+
+## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
+
+@valerio-oai verdict stands: "around line 1500 you're first adapting your model to the eval tokens with TTT for multiple epochs, and then reporting val numbers on those tokens you've already trained on." No appeal path. Score 1.0705 void.
+
+## N-gram PR Status
+
+All n-gram PRs from the competition window are now resolved:
+- **PR #727**: CLOSED (illegal — unnormalized distribution)
+- **PR #741**: CLOSED (illegal — same pattern)
+- **PR #758**: Effectively DEAD (XOR hash key includes target token, flagged by MatoTeziTanka)
+- **PR #731** (Hedge Mixer, dense count tables + Laplace smoothing): Still OPEN, seeds 1337/2024 never filed before deadline. Technique confirmed "LOOKS CLEAN" but competition closed without merge. Blueprint is sound for future use.
+
+## Audit: PR #2146 MERGED (May 1, 2026)
+
+Organizer cocohearts merged PR #2146 on May 1, finalizing the grace-policy audit. 192 PRs reviewed via parallel Codex shard graders + chronological reconciliation.
+
+**Accepted (grace policy):**
+| PR | Author | Score | Technique |
+|----|--------|-------|-----------|
+| #1945 | alertcat | 1.05943 | PR #1855 + AWQ-lite GPTQ + AsymLogit Rescale |
+| #1953 | andrewbaggio1 | 1.05855 | V21 + 2560 context + no-Q/V TTT mask + QK-Gain 5.25 |
+| #2014 | simonbissonnette | 1.05759 | CaseOps stack + progressive context growth to 3k + short-doc TTT |
+| #2135 | codemath3000 | **1.05651** | PR #2130 base + GPTQ_CALIBRATION_BATCHES=32 ← **NEW OFFICIAL SOTA** |
+
+**Rejected:**
+| PR | Reason |
+|----|--------|
+| #2130 | Data overlap — docs 10,000–49,999 shared between train and val split |
+| #2018/#2039/#2041/#2076/#2080/#2083/#2098/#2103 | Various: data overlap, byte-PPM audit failures |
+| #2140 | Technically valid but superseded by PR #2135 (non-frontier) |
+
+## Official Final Leaderboard (post-audit)
+
+| Rank | Score | Author | PR |
+|------|-------|--------|----|
+| 1 | **1.05651** | codemath3000 | #2135 (grace policy) |
+| 2 | 1.05759 | simonbissonnette | #2014 (grace policy) |
+| 3 | 1.05855 | andrewbaggio1 | #1953 (grace policy) |
+| 4 | 1.05943 | alertcat | #1945 (grace policy) |
+| 5 | 1.0611 | codemath3000 | #1855 |
+| 6 | 1.0614 | aquariouseworkman | #1851/#1868 |
+
+**Our PR #771**: REJECTED. No placement.
+
+## What Changed (GitHub) — Post-Competition Activity (May 1–5)
+
+Post-deadline PRs filed for archival/non-record purposes only:
+
+| PR | Author | Score | Status | Notes |
+|----|--------|-------|--------|-------|
+| #2157 | vimeto | 1.06043 | Draft | PR #1797 + AWQ-lite top3 + LQER 60k. Post-deadline, non-record. |
+| #2155/#2154 | divagr18 | — | #2154 Closed | Mamba3 SSM hybrid SP8192, non-record. |
+| #2153 | rixhavraj | 0.9627 | Open | **Likely BPB bug** — "36-hour optimization cycle," no artifact, informal commits, no methodology. Pattern matches prior BPB bug submissions. |
+| #2149 | YaseenHQ | — | Open | RandProj384 tied embeddings + Pairwise-QK Muon, non-record. |
+| #2143 | upascal | 1.07134 | Open | CaseOps + SparseAttnGate, post-deadline non-record. |
+| #2144 | simonbissonnette | 0.9697 | Open | **Non-record** (pre-quant, not 16MB artifact). Explicitly marked non-record by author. |
+| #2140 | simon-marcus | 1.0570 | Open | PR #2014 stack + LeakyReLU + n-gram TTT. Audit deemed non-frontier (superseded by #2135). |
+| #2158 | izlley | — | Open | PR #2135 + MP3 marker-pair fusion. No score yet. |
+| #2139 | varunneal | 1.05749 | Closed | TTT Peer-LoRA Ensemble on PR #2014. Self-closed. |
+
+## New Research Papers
+
+No new actionable papers found for our stack since May 4 entry:
+- **LaCT** (arXiv:2505.23884): Already tracked. Large-chunk TTT. Used in Doc-TTT implementations in competition.
+- **Test-Time Learning for LLMs** (arXiv:2505.20633): Input perplexity minimization. No direct applicability to score-first constraint.
+- **End-to-End TTT for Long Context** (arXiv:2512.23675): Compresses context into weights via NTP loss. Conceptually aligned with Doc-TTT; no new actionable implementation detail.
+- No new n-gram interpolation or QAT papers found beyond techniques already tracked.
+
+## Recommended Action
+
+Competition is closed. All SOTA standings are final pending any further organizer decisions on PPM-D (Issue #1872 — still unresolved). Key takeaways for any future competition:
+
+1. **GPTQ_CALIBRATION_BATCHES=32** (vs 16): free ~0.001 bpb — add this to submission checklist.
+2. **AsymLogit Rescale**: 2 trainable scalars replace fixed logit_softcap. ~5 lines, zero risk, ~0.001–0.002 bpb.
+3. **Data overlap bug pattern**: Always verify train/val split with fingerprint check before filing. PR #2130 lost ~0.002 bpb improvement due to this bug being caught post-submission.
+4. **BPB denominator**: Always verify byte count uses raw UTF-8 sidecar, not CaseOps-transformed bytes (PR #2138 bug #7).
+
+---
+
 # Parameter Golf Daily Research - 2026-05-04 (POST-COMPETITION DAY 4)
 
 ## Competition Status: CLOSED (Apr 30, 2026)
