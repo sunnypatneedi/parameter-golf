@@ -1,3 +1,86 @@
+# Parameter Golf Daily Research - 2026-05-06 (POST-COMPETITION DAY 6)
+
+## Competition Status: CLOSED (Apr 30, 2026)
+Audit COMPLETE — PR #2146 merged May 1. All standings final.
+
+## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
+
+No change. Train-then-score TTT violation per @valerio-oai. No appeal path. Score 1.0705 void.
+
+## N-gram PR Status — Final
+
+- **PR #727**: CLOSED — @valerio-oai: hash key includes target token via XOR (eval leakage). Final.
+- **PR #731** (Hedge Mixer, dense count tables + Laplace): OPEN, dormant — seeds 1337/2024 never filed before deadline. "LOOKS CLEAN" from reviewer. Competition closed without merge. Technique blueprint is sound.
+- **PR #758**: OPEN, effectively dead — same XOR target-token violation as #727.
+
+## Leaderboard (Official Final — PR #2146 merged May 1)
+
+Confirmed via `git show upstream/main:README.md`. The audit PR is the top commit on upstream/main (`f5c0793 Update leaderboard with May 1 audited rows (#2146)`).
+
+| Rank | Score | Author | PR | Key Stack |
+|------|-------|--------|----|-----------|
+| 1 | **1.05651** | codemath3000 | #2135 (grace policy) | PR #2130 base + GPTQ_CALIBRATION_BATCHES=32 |
+| 2 | 1.05759 | simonbissonnette | #2014 (grace policy) | CaseOps + progressive context growth to 3k + short-doc TTT |
+| 3 | 1.05855 | andrewbaggio1 | #1953 (grace policy) | V21 + 2560 context + no-Q/V TTT mask + QK-Gain 5.25 |
+| 4 | 1.05943 | alertcat | #1945 (grace policy) | PR #1855 + AWQ-lite GPTQ + AsymLogit Rescale |
+| 5 | 1.0611 | codemath3000 | #1855 | BOS-Fixed SmearGate + LQER Asym + SparseAttnGate + 9-hparam + lrzip |
+| 6 | 1.0614 | aquariouseworkman | #1851/#1868 | SmearGate BOS Fix + PR#1787 + LQER Asym + Phased TTT |
+
+**Our PR #771**: REJECTED. No placement.
+
+## What Changed (GitHub — since May 5)
+
+Recent upstream/main commits are exclusively non-record or archival submissions:
+
+| Commit / PR | Author | Technique | Notes |
+|-------------|--------|-----------|-------|
+| PR #1443 | hardik-bhadani-git | ByteJEPA | Non-record/notable submission |
+| PR #2058 | pranavxiyer | Adapter MLP | Non-record/notable submission |
+| PR #1388 | CiprianFlorin-Ifrim | XNOR-Net | Notable non-record |
+| PR #542 | ddavidgao | — | Archival |
+| PR #1106 | agalimova | MDLM Diffusion | Non-record |
+
+No new leaderboard records since PR #2146 merged May 1. Competition fully closed.
+
+## New Research Papers (May 6 scan)
+
+No new papers found beyond those already tracked in the May 4–5 entries. The looped transformer cluster (arXiv:2604.21106, 2604.21254, 2604.11791, 2604.15259) remains the highest-priority unread backlog. No new 2026 papers found on n-gram/neural interpolation or score-first TTT.
+
+Papers confirmed already tracked (no new entries needed):
+- LaCT (2505.23884): Large-chunk TTT — Doc-TTT in PR #1560 is this
+- In-Place TTT NTP-aligned (2604.06169): Pending read — HIGH priority for future TTT design
+- Hyperloop Transformers (2604.21254): Hyper-connections for looped models — HIGH for future architecture
+- Iso-Depth Scaling Laws (2604.21106): Quantitative guidance for loop depth tuning — HIGH
+- Bell Box Quantization (2603.01599): ITO quantization, may replace GPTQ/LQER — HIGH
+- EntroLLM (2505.02380): Entropy coding for 16MB artifact compression — HIGH
+- AsymLogit Rescale (from PR #1923/#2130): ~5 lines, ~0.002 bpb gain — add to future checklist
+
+## Status Summary
+
+| Item | Status |
+|------|--------|
+| Competition | **CLOSED** (April 30, 2026) — Final |
+| Official SOTA | **1.05651** (codemath3000, PR #2135, grace policy) |
+| Upstream activity | Non-record/archival PRs only. No leaderboard changes. |
+| Our submission | **REJECTED** (PR #771). No placement. |
+| Issue #1872 (PPM-D) | No @valerio-oai ruling. Competition ended unresolved. |
+| PR #731 (Hedge Mixer) | Open, dormant. Seeds never filed. |
+
+## Recommended Action
+
+Competition fully over. No time-sensitive actions remain.
+
+**For any future competition — ordered priority:**
+1. **Read arXiv:2604.06169** (In-Place TTT, NTP-aligned loss): Primary TTT improvement not yet used anywhere in competition.
+2. **Read arXiv:2604.21254** (Hyperloop Transformers): Hyper-connections add ~minimal params, substantial loop quality gain. Zero competition precedent.
+3. **Read arXiv:2604.21106** (Iso-Depth Scaling Laws): Tells you exactly how many recurrences are worth it at given parameter budget.
+4. **Implement AsymLogit Rescale** (PR #1923): ~5 lines, ~0.002 bpb, zero legality risk — add to submission checklist.
+5. **Implement GPTQ_CALIBRATION_BATCHES=32** (PR #2135): One hyperparameter change, ~0.001 bpb free.
+6. **File code PR early**: The grace policy (PR #2146) shows results post-deadline are accepted if code was filed pre-cutoff. Next competition: file code on Day 1.
+7. **Verify train/val split isolation explicitly**: PR #2130 lost SOTA position due to docs 10k–49k overlap. Add fingerprint check to submission checklist.
+
+---
+
 # Parameter Golf Daily Research - 2026-05-05 (POST-COMPETITION DAY 5)
 
 ## Competition Status: CLOSED (Apr 30, 2026)
