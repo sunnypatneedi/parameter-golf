@@ -612,3 +612,84 @@ No new papers found beyond techniques already tracked in CLAUDE.md.
 3. **PPM-D (PR #1854/#1991, 0.902)**: Do NOT implement. @valerio-oai raised two explicit concerns on PR #1835 and Issue #1872 is open. Zero safe window before deadline.
 
 **Note on PR #1987** (1.06184, clean): Would not beat SOTA by 0.005 nats (gap is only 0.0007). Not viable as a SOTA claim even if filed today.
+
+---
+
+# Parameter Golf Daily Research — 2026-05-07
+
+**Competition closed April 30, 2026. Post-competition audit (PR #2146) merged May 1. This is a post-mortem / future-prep session.**
+
+## PR #771 STATUS: CLOSED (REJECTED)
+
+Confirmed closed March 27, 2026. @valerio-oai explicit ruling:
+
+> "around line 1500 you're first adapting your model to the eval tokens with TTT for multiple epochs, and then reporting val numbers on those tokens you've already trained on, so this is not an allowable submission."
+
+No appeal path. The 30ep AdamW TTT with cosine LR ran train-then-score on all val tokens. Score 1.0705 is permanently void.
+
+## N-GRAM PR STATUS
+
+| PR | Score | Status | Reason |
+|----|-------|--------|--------|
+| #727 | 0.9674 | **CLOSED (rejected)** | N-gram hash key included target token — information leakage. @valerio-oai ruling March 27. |
+| #758 | 1.0465 | **OPEN / dead** | Same target-token XOR hash violation as #727. Flagged by reviewer MatoTeziTanka. No fix submitted. |
+| #731 | 1.0400 | **OPEN / never merged** | "LOOKS CLEAN" per reviewer. Required seeds 1337 + 2024 never filed. Competition closed before completion. |
+
+## Leaderboard (Final — Post-Audit)
+
+| Rank | Score | Author | PR |
+|------|-------|--------|----|
+| 1 | **1.05651** | codemath3000 | #2135 (grace policy, GPTQ_CALIBRATION_BATCHES=32) |
+| 2 | 1.05759 | simonbissonnette | #2014 (grace policy, progressive context + short-doc TTT) |
+| 3 | 1.05855 | andrewbaggio1 | #1953 (grace policy, 2560 ctx + no-Q/V TTT mask) |
+| 4 | 1.05943 | alertcat | #1945 (grace policy, AWQ-lite GPTQ + AsymLogit) |
+| 5 | 1.0611 | codemath3000 | #1855 (pre-grace SOTA) |
+
+Last upstream commit: `f5c0793 Update leaderboard with May 1 audited rows (#2146)`. No new merges since May 1.
+
+**Our status**: No submission. No placement. PR #771 rejected.
+
+## What Changed (GitHub since last session — Apr 30 → May 7)
+
+- **PR #2146 merged May 1**: Official audit complete. 4 grace-policy PRs accepted (#1945, #1953, #2014, #2135). PR #2130 excluded for docs 10k–49k train/val overlap. Audit is final; no further leaderboard changes expected.
+- **New non-record submissions added**: PRs #1443 (ByteJEPA), #2058 (Adapter MLP), #1388 (XNOR-Net notable), #542, #1106 (MDLM diffusion), #903 (LEWM-JEPA-SSM-Mamba2), #1337 (LegendreGPT), #1104, #1371 (GDN long context), #1644 (Mamba3 SP8192 TTT). These are non-record notable-submissions only — no bpb claims that affect leaderboard.
+- **No new open PRs with competitive scores** since competition close.
+
+## New Research Papers (May 2026)
+
+| Paper | arXiv ID | Date | Relevance |
+|-------|----------|------|-----------|
+| Decoupling the Benefits of Subword Tokenization via Byte-level Simulation | 2604.27263 | Apr 2026 | Validates byte-sidecar BPB approach used by CaseOps. Explains why bijective case transforms preserve eval integrity. Reference for future tokenizer design. |
+| Parallel Loop Transformer for Efficient Test-Time Computation Scaling | 2510.24824 | Oct 2025 | Validates deep looped architecture (our Triple Loop / PR #1493 base). Parallel loop delivers test-time depth without serial latency. |
+| Scaling Latent Reasoning via Looped Language Models | 2510.25741 | Oct 2025 | 1.4B LoopLM matches 4B standard transformer. Confirms 2–3× parameter efficiency of recurrent depth. Quantifies ~2 bits/param knowledge storage regardless of looping. |
+| pQuant: Effective Low-Bit LMs via Decoupled Linear QAT | 2602.22592 | Feb 2026 | 1-bit main branch + high-precision branch for sensitive params. May inform next-gen GPTQ strategy. Lower priority given competition close. |
+| Compute-Optimal Quantization-Aware Training | 2509.22935 | Sep 2025 | **Already in CLAUDE.md technique table.** LR decay + QAT fusion ~-0.002 bpb. |
+| Test-Time Training Done Right (LaCT) | 2505.23884 | May 2025 | **Already in CLAUDE.md.** TTT benchmark; online memory + compression framing. |
+
+**No new May 2026 papers found** that introduce novel techniques not already documented in CLAUDE.md.
+
+## HuggingFace / Community Discoveries
+
+Nothing new from community channels post-competition-close. The PPM-D cluster (PRs #1850/#1854/#1991) remains unruled by @valerio-oai — Issue #1872 open but competition is closed so no practical consequence.
+
+## Status Summary
+
+| Item | Status |
+|------|--------|
+| Competition | **CLOSED April 30, 2026** |
+| Final SOTA | **1.05651** (codemath3000, PR #2135, grace policy) |
+| Post-competition audit | **COMPLETE** (PR #2146, merged May 1) |
+| Our submissions | **0 accepted** (PR #771 rejected) |
+| PR #731 (Hedge Mixer) | Open/stale — seeds never filed, moot |
+| New upstream activity | Non-record submissions only; leaderboard frozen |
+
+## Recommended Action
+
+**Competition is over. Three post-mortem priorities:**
+
+1. **Document root causes** for the two failure modes: (a) PR #771 train-then-score violation — score-first protocol was understood but not implemented; (b) never filed a second submission after PR #771 rejection despite having 5 weeks and multiple validated technique stacks.
+
+2. **Preserve the winning stack for future use.** The techniques in PR #1855 / #2135 are the final confirmed-legal SOTA: CaseOps + LQER Asym + SparseAttnGate + SmearGate BOS-fix + AsymLogit Rescale + token-only n-gram tilt (ORDER=16, THRESHOLD=0.800, BOOST=2.625) + phased LoRA TTT + GPTQ_CALIBRATION_BATCHES=32. These are all clean. Any future similar challenge should start from this stack.
+
+3. **PR #731 Hedge Mixer (1.0400, "LOOKS CLEAN")** — seeds 1337/2024 were the only remaining gate. The technique (dense count tables + Laplace smoothing + 5-expert ensemble) was never ruled illegal. Low-priority follow-up if organizers run a post-competition open track.
+
