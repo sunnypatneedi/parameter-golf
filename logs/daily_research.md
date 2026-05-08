@@ -1,3 +1,101 @@
+# Parameter Golf Daily Research - 2026-05-08 (POST-COMPETITION DAY 8)
+
+## Competition Status: CLOSED (Apr 30, 2026)
+Audit COMPLETE — PR #2146 merged May 1. All standings final. No new leaderboard activity since.
+
+## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
+
+@valerio-oai: "around line 1500 you're first adapting your model to the eval tokens with TTT for multiple epochs, and then reporting val numbers on those tokens you've already trained on, so this is not an allowable submission." Train-then-score violation. Score 1.0705 void. No appeal path.
+
+## N-Gram PR Status — Final
+
+| PR | Score | Status | Reason |
+|----|-------|--------|--------|
+| #727 | 0.9674 | **CLOSED** | Hash key includes target token (XOR leakage). @valerio-oai ruling Mar 27. |
+| #758 | 1.0465 | **OPEN / dead** | Same XOR target-token violation as #727. Flagged by reviewer MatoTeziTanka. |
+| #731 | 1.0400 | **OPEN / stale** | "LOOKS CLEAN" per reviewer. Seeds 1337+2024 never filed. Competition closed. |
+
+## Leaderboard (Official Final — PR #2146 merged May 1)
+
+Confirmed via `git show upstream/main:README.md`. Last upstream commit: `f5c0793 Update leaderboard with May 1 audited rows (#2146)`.
+
+| Rank | Score | Author | PR | Key Stack |
+|------|-------|--------|----|-----------|
+| 1 | **1.05651** | codemath3000 | #2135 (grace) | PR #2130 base + GPTQ_CALIBRATION_BATCHES=32 |
+| 2 | 1.05759 | simonbissonnette | #2014 (grace) | CaseOps + progressive context 3k + short-doc TTT |
+| 3 | 1.05855 | andrewbaggio1 | #1953 (grace) | V21 + 2560 ctx + no-Q/V TTT mask + QK-Gain 5.25 |
+| 4 | 1.05943 | alertcat | #1945 (grace) | PR #1855 + AWQ-lite GPTQ + AsymLogit Rescale |
+| 5 | 1.0611 | codemath3000 | #1855 | BOS-Fixed SmearGate + LQER Asym + SparseAttnGate + 9-hparam + lrzip |
+| 6 | 1.0614 | aquariouseworkman | #1851/#1868 | SmearGate BOS Fix + PR#1787 + LQER Asym + Phased TTT |
+
+**Our PR #771**: REJECTED. No placement.
+
+## What Changed (GitHub — since May 6)
+
+Upstream main log (last 10 commits): PR #2146 (audit, May 1) + non-record archival merges only (ByteJEPA #1443, Adapter MLP #2058, XNOR-Net #1388, MDLM Diffusion #1106, LEWM-JEPA-SSM-Mamba2 #903, LegendreGPT #1337, GDN long context #1371, Mamba3 #1644, misc). No new record merges.
+
+### New Open PRs (post-competition, no record eligibility)
+
+| PR | Author | Score | Status | Notes |
+|----|--------|-------|--------|-------|
+| #2161 | adiprathapa | — | Open | SP4096 QK4.5 budget reproduction candidate. No score. |
+| #2159 | visin109 | — | Open | SwiGLU gating + QAT + Residual Attention Scaling. No score. |
+| #2158 | izlley | — | Open | PR #2135 + MP3 marker-pair fusion. No score. |
+| #2157 | vimeto | 1.06043 | Draft | PR #1797 + AWQ-lite top3 + LQER 60k. Post-deadline non-record. |
+| #2155 | divagr18 | — | Open | SP8192 + Mamba3 SSM hybrid. Non-record. |
+| **#2153** | rixhavraj | **0.9627** | Open | ⚠️ **Likely BPB bug** — "36-hour optimization," no artifact, informal commits ("model improved", "updte02"), no methodology, no reviews. Score gap vs SOTA is 0.099 bpb with no architectural justification. |
+| #2138 | anmarhindi | ~~0.979~~ → **1.067** | Open | **CONFIRMED BPB BUG (#7)**: divided by CaseOps-transformed bytes (164,594,398) not raw-text sidecar (151,074,309). Corrected score 1.067219 — worse than SOTA. |
+
+**PR #2138 is the 7th confirmed BPB bug in this competition.** Pattern: extraordinary score claim → community review → byte-denominator manipulation identified.
+
+## New Research Papers (May 8 scan)
+
+No papers found that haven't already been documented in prior entries. Papers confirmed present in search but already tracked:
+
+| Paper | arXiv | Status |
+|-------|-------|--------|
+| LaCT (Test-Time Training Done Right) | 2505.23884 | Already tracked (May 4 entry) |
+| Test-Time Learning for LLMs | 2505.20633 | Already tracked (May 5 entry) |
+| Hyperloop Transformers | 2604.21254 | Already tracked (May 4 entry) |
+| pQuant decoupled linear QAT | 2602.22592 | Already tracked (May 7 entry) |
+
+**Two papers not previously logged** (low competition relevance, noted for completeness):
+
+| Paper | arXiv | Date | Notes |
+|-------|-------|------|-------|
+| NGPU-LM: GPU-Accelerated N-Gram LM for ASR Context Biasing | 2505.22857 | May 2026 | GPU-parallel n-gram inference; wrong domain (ASR, not compression). No direct applicability. |
+| LoopFormer: Elastic-Depth Looped Transformers | 2602.11451 | Feb 2026 | Shortcut modulation for adaptive loop depth. Conceptually similar to our Triple Loop activation-at-0.35× design. Not novel vs Hyperloop (2604.21254) already tracked. |
+| Loop, Think & Generalize (Recurrent-Depth Transformers) | 2604.07822 | Apr 2026 | Systematic + depth generalization for looped models. Validates Triple Loop; no new implementable technique. |
+| SLMQuant: Benchmarking SLM Quantization | 2511.13023 | Nov 2025 | First SLM-specific quantization benchmark. Key finding: LLM-optimized techniques underperform on SLMs due to different sensitivity distributions. Supports per-layer adaptive GPTQ (PR #1586) over uniform clipping. |
+
+## Status Summary
+
+| Item | Status |
+|------|--------|
+| Competition | **CLOSED** (April 30, 2026) — Final |
+| Official SOTA | **1.05651** (codemath3000, PR #2135, grace policy) |
+| Post-audit activity | Non-record archival submissions only. No leaderboard changes. |
+| Our submission | **REJECTED** (PR #771) |
+| Issue #1872 (PPM-D) | No @valerio-oai ruling. Competition ended unresolved. |
+| PR #731 (Hedge Mixer) | Open, dormant. Seeds never filed. |
+| PR #2153 (0.9627 claim) | Likely BPB bug — no review, no artifact, no methodology. |
+
+## Recommended Action
+
+Competition fully over. Pending-read backlog for next competition:
+
+| Priority | Item | Why |
+|----------|------|-----|
+| 1 | arXiv:2604.06169 (In-Place TTT, NTP-aligned loss) | Improves legal TTT without pre-quant violation; addresses Session 3 failure mode |
+| 2 | arXiv:2604.21254 (Hyperloop Transformers) | Hyper-connections for loops — zero competition precedent, strong theoretical backing |
+| 3 | arXiv:2604.21106 (Iso-Depth Scaling Laws) | Quantitative guidance on optimal recurrence depth at our parameter budget |
+| 4 | arXiv:2604.12946 (Parcae) | Spectral norm constraint for stable Triple Loop — may unlock depth 4× |
+| 5 | PR #1855 code study | Extract full winning stack: CaseOps+LQER+SparseAttnGate+SmearGate BOS-fix+lrzip |
+| 6 | AsymLogit Rescale (PR #1923) | ~5 lines, ~0.002 bpb, zero legality risk — first add in any future competition |
+| 7 | GPTQ_CALIBRATION_BATCHES=32 | One hyperparameter change, ~0.001 bpb free |
+
+---
+
 # Parameter Golf Daily Research - 2026-05-06 (POST-COMPETITION DAY 6)
 
 ## Competition Status: CLOSED (Apr 30, 2026)
@@ -104,7 +202,7 @@ Organizer cocohearts merged PR #2146 on May 1, finalizing the grace-policy audit
 
 **Accepted (grace policy):**
 | PR | Author | Score | Technique |
-|----|--------|-------|-----------|
+|----|--------|-------|----------|
 | #1945 | alertcat | 1.05943 | PR #1855 + AWQ-lite GPTQ + AsymLogit Rescale |
 | #1953 | andrewbaggio1 | 1.05855 | V21 + 2560 context + no-Q/V TTT mask + QK-Gain 5.25 |
 | #2014 | simonbissonnette | 1.05759 | CaseOps stack + progressive context growth to 3k + short-doc TTT |
@@ -120,7 +218,7 @@ Organizer cocohearts merged PR #2146 on May 1, finalizing the grace-policy audit
 ## Official Final Leaderboard (post-audit)
 
 | Rank | Score | Author | PR |
-|------|-------|--------|----|
+|------|-------|--------|----||
 | 1 | **1.05651** | codemath3000 | #2135 (grace policy) |
 | 2 | 1.05759 | simonbissonnette | #2014 (grace policy) |
 | 3 | 1.05855 | andrewbaggio1 | #1953 (grace policy) |
@@ -454,7 +552,7 @@ Same as prior days. No change. Final.
 
 ## Leaderboard (FINAL — competition closed April 30, 2026)
 | Rank | Score | Author | PR |
-|------|-------|--------|----|
+|------|-------|--------|----||
 | 1 | **1.0611** | codemath3000 | #1855 — BOS-Fixed SmearGate + LQER + SparseAttnGate + 9-Hparam + lrzip |
 | 2 | 1.0614 | aquariouseworkman | #1851/#1868 — SmearGate BOS Fix + PR#1787 + LQER Asym + Phased TTT |
 | 3 | 1.0634 | nprime06 | #1787 — CaseOps + Polar Express NS + MIN_LR + SparseAttnGate + FusedCE + Warm-A TTT |
@@ -638,7 +736,7 @@ No appeal path. The 30ep AdamW TTT with cosine LR ran train-then-score on all va
 ## Leaderboard (Final — Post-Audit)
 
 | Rank | Score | Author | PR |
-|------|-------|--------|----|
+|------|-------|--------|----||
 | 1 | **1.05651** | codemath3000 | #2135 (grace policy, GPTQ_CALIBRATION_BATCHES=32) |
 | 2 | 1.05759 | simonbissonnette | #2014 (grace policy, progressive context + short-doc TTT) |
 | 3 | 1.05855 | andrewbaggio1 | #1953 (grace policy, 2560 ctx + no-Q/V TTT mask) |
@@ -658,7 +756,7 @@ Last upstream commit: `f5c0793 Update leaderboard with May 1 audited rows (#2146
 ## New Research Papers (May 2026)
 
 | Paper | arXiv ID | Date | Relevance |
-|-------|----------|------|-----------|
+|-------|----------|------|----------|
 | Decoupling the Benefits of Subword Tokenization via Byte-level Simulation | 2604.27263 | Apr 2026 | Validates byte-sidecar BPB approach used by CaseOps. Explains why bijective case transforms preserve eval integrity. Reference for future tokenizer design. |
 | Parallel Loop Transformer for Efficient Test-Time Computation Scaling | 2510.24824 | Oct 2025 | Validates deep looped architecture (our Triple Loop / PR #1493 base). Parallel loop delivers test-time depth without serial latency. |
 | Scaling Latent Reasoning via Looped Language Models | 2510.25741 | Oct 2025 | 1.4B LoopLM matches 4B standard transformer. Confirms 2–3× parameter efficiency of recurrent depth. Quantifies ~2 bits/param knowledge storage regardless of looping. |
@@ -692,4 +790,3 @@ Nothing new from community channels post-competition-close. The PPM-D cluster (P
 2. **Preserve the winning stack for future use.** The techniques in PR #1855 / #2135 are the final confirmed-legal SOTA: CaseOps + LQER Asym + SparseAttnGate + SmearGate BOS-fix + AsymLogit Rescale + token-only n-gram tilt (ORDER=16, THRESHOLD=0.800, BOOST=2.625) + phased LoRA TTT + GPTQ_CALIBRATION_BATCHES=32. These are all clean. Any future similar challenge should start from this stack.
 
 3. **PR #731 Hedge Mixer (1.0400, "LOOKS CLEAN")** — seeds 1337/2024 were the only remaining gate. The technique (dense count tables + Laplace smoothing + 5-expert ensemble) was never ruled illegal. Low-priority follow-up if organizers run a post-competition open track.
-
