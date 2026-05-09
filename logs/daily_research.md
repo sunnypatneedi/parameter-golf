@@ -1,3 +1,123 @@
+# Parameter Golf Daily Research - 2026-05-09 (POST-COMPETITION DAY 9)
+
+## Competition Status: CLOSED (Apr 30, 2026)
+Audit COMPLETE — PR #2146 merged May 1. **Current official SOTA: 1.05651** (codemath3000, PR #2135).
+
+## ⚠️ CRITICAL: Three New Organizer Codex Branches — Possible CaseOps Revocation
+
+`git fetch upstream` revealed three **unmerged** Codex branches not present yesterday:
+- `codex/update-parameter-golf-leaderboard-p025-worktree`
+- `codex/update-readme-leaderboard-merged-records`
+- `codex/update-readme-format-blocked-leaders`
+
+### Branch Analysis: `codex/update-parameter-golf-leaderboard-p025-worktree`
+
+Most recent commit: `6ee5435 Update parameter golf leaderboard` (undated, no PR #).
+
+**What it does**: Removes ALL CaseOps-based records (PRs #2135, #2014, #1953, #1945, #1855, #1851/#1868, #1787, #1769, #1736, #1729 — scores 1.05651 to 1.0678) AND removes PR #1529 (1.0758) and PR #1514 (1.0798). Adds two previously unmerged records:
+
+| New Entry | Author | Score | Notes |
+|-----------|--------|-------|-------|
+| PR #1784 | renqianluo | **1.0708** | GatedAttn + Alpha-Scaled LoRA + Warm-Start A + WD=1.0 |
+| PR #1518 | abaybektursun | **1.0739** | Asymmetric Two-Lane Parallel Routing + Tap-In V6 + Legal TTT |
+
+**If this branch merges, effective SOTA becomes ~1.0708** (renqianluo, PR #1784). All CaseOps leaderboard entries would be invalidated retroactively.
+
+### Branch Analysis: `codex/update-readme-leaderboard-merged-records`
+
+Single commit: "Describe leaderboard entries by base-run diff." Removes all rows above PR #1493 (1.0810), keeping only entries from 1.0810 downward. Would reset visible SOTA to 1.0810.
+
+### Branch Analysis: `codex/update-readme-format-blocked-leaders`
+
+Older branch (includes Scylla-era commits). Also removes CaseOps rows and some others. Keeps from 1.0810 and below.
+
+### Assessment
+
+**None of these branches are merged to main.** Current official SOTA (1.05651, PR #2146) is unchanged. However:
+- Three independent Codex branches all remove CaseOps records = strong signal organizers are revisiting CaseOps legality
+- PR #1784 (1.0708) and PR #1518 (1.0739) being added = organizers may be approving non-CaseOps alternatives missed in the main audit
+- The "blocked-leaders" branch name suggests these entries are being categorized as blocked/invalid
+- **PR #1784 (renqianluo, 1.0708) is a previously untracked record — monitor for main merge**
+- **Monitor upstream/main daily for these branches merging**
+
+---
+
+## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
+
+No change. Train-then-score TTT violation per @valerio-oai. Score 1.0705 void.
+
+Note: If the p025-worktree branch merges and CaseOps entries (1.0611–0.0678) are revoked, the non-CaseOps leaderboard SOTA would become ~1.0708. Our PR #771 at 1.0705 would have been competitive in that alternate universe. No appeal path regardless.
+
+## N-Gram PR Status — Final
+
+| PR | Score | Status |
+|----|-------|--------|
+| #727 | 0.9674 | **CLOSED** — @valerio-oai: hash key includes target token. Final. |
+| #731 | 1.0400 | **OPEN/stale** — seeds 1337+2024 never filed. Competition closed. |
+| #758 | 1.0465 | **OPEN/dead** — same XOR target-token violation as #727. |
+
+## Leaderboard (Official — upstream/main)
+
+Last commit on upstream/main: `f5c0793 Update leaderboard with May 1 audited rows (#2146)` — NO CHANGE since May 1.
+
+| Rank | Score | Author | PR |
+|------|-------|--------|-----|
+| 1 | **1.05651** | codemath3000 | #2135 (grace) |
+| 2 | 1.05759 | simonbissonnette | #2014 (grace) |
+| 3 | 1.05855 | andrewbaggio1 | #1953 (grace) |
+| 4 | 1.05943 | alertcat | #1945 (grace) |
+| 5 | 1.0611 | codemath3000 | #1855 |
+| 6 | 1.0614 | aquariouseworkman | #1851/#1868 |
+
+**Our PR #771**: REJECTED. No placement.
+
+## What Changed (GitHub — since May 8)
+
+### Upstream main: no new merges since May 1.
+
+### New open PRs (post-competition):
+
+| PR | Author | Score | Notes |
+|----|--------|-------|-------|
+| **#2163** | uniagent-alpha | **1.06035** | SP8192 + NEFTune + Z-Loss + Phased-TTT (4 phases, prefix=3000, LoRA-128); 3-seed mean. Post-deadline non-record. Does NOT beat SOTA (gap 0.004). |
+| #2161 | adiprathapa | — | SP4096 QK4.5 budget reproduction. No score. |
+| #2159 | visin109 | — | SwiGLU + QAT + Residual Attention Scaling. No score. |
+| #2157 | vimeto | 1.06043 (seed=0 only) | Draft. PR #1797 + AWQ-lite + LQER 60k. Post-deadline. |
+| #2158 | izlley | — | PR #2135 + MP3 marker-pair fusion. No score. |
+
+**PR #1784 (renqianluo, 1.0708)**: Previously untracked open PR now appearing in organizer Codex branch. GatedAttn + LoRA warm-start A + alpha-scaling. Score appears pre-CaseOps clean. If CaseOps entries are revoked, this becomes SOTA candidate.
+
+## New Research Papers (May 9 scan)
+
+| Paper | arXiv | Date | Key Technique | Relevance |
+|-------|-------|------|---------------|-----------|
+| Frequency-Ordered Tokenization for Better Text Compression | 2602.22958 | Feb 2026 | Reorders subword tokens by frequency to improve compression ratio via Zipf's law exploitation. Simple preprocessing. | MEDIUM — for next competition: applying frequency ordering to SP8192 vocab before compression could improve lrzip artifact size slightly. Zero legality risk. |
+| zip2zip: Inference-Time Adaptive Tokenization | 2506.01084 | Oct 2025 | Online bijective tokenization at inference; proves bijective transforms preserve entropy. | LOW — post-cutoff, supports CaseOps correctness argument theoretically. |
+
+**No new high-priority papers** beyond what's already in the backlog (arXiv:2604.06169, 2604.21254, 2604.21106, 2604.12946).
+
+## Status Summary
+
+| Item | Status |
+|------|--------|
+| Competition | **CLOSED** April 30, 2026 |
+| Official SOTA (upstream/main) | **1.05651** (PR #2135) — UNCHANGED |
+| Organizer Codex branches | 3 unmerged branches removing CaseOps records |
+| If p025-worktree merges | New SOTA: **1.0708** (PR #1784, renqianluo) |
+| Our submission | REJECTED (PR #771, 1.0705) |
+| PR #2163 | 1.06035 — does not beat SOTA |
+| PR #1784 (new track) | 1.0708 — watch for main merge |
+
+## Recommended Action
+
+1. **Monitor upstream/main daily for CaseOps revocation.** If `codex/update-parameter-golf-leaderboard-p025-worktree` merges, the entire CaseOps-based leaderboard from 1.05651 to 1.0678 is revoked and the official SOTA reverts to ~1.0708. This is the single most important open question in post-competition status.
+
+2. **Track PR #1784 (renqianluo, 1.0708)** — first appearance on an organizer branch. GatedAttn + warm-start A LoRA TTT on a non-CaseOps base. If CaseOps revocation happens, this would be the new SOTA blueprint. Technique is already in our tracked stack.
+
+3. **Note for future competitions**: If CaseOps is retroactively revoked, the winning stack without CaseOps would be PR #1529 (1.0758, Improved Parallel Residuals + CUTLASS EVT) or PR #1784 (1.0708, GatedAttn + warm-start A). Both use legal techniques already in CLAUDE.md.
+
+---
+
 # Parameter Golf Daily Research - 2026-05-08 (POST-COMPETITION DAY 8)
 
 ## Competition Status: CLOSED (Apr 30, 2026)
@@ -32,32 +152,30 @@ Confirmed via `git show upstream/main:README.md`. Last upstream commit: `f5c0793
 
 ## What Changed (GitHub — since May 6)
 
-Upstream main log (last 10 commits): PR #2146 (audit, May 1) + non-record archival merges only (ByteJEPA #1443, Adapter MLP #2058, XNOR-Net #1388, MDLM Diffusion #1106, LEWM-JEPA-SSM-Mamba2 #903, LegendreGPT #1337, GDN long context #1371, Mamba3 #1644, misc). No new record merges.
+Recent upstream/main commits are exclusively non-record or archival submissions:
 
-### New Open PRs (post-competition, no record eligibility)
+| Commit / PR | Author | Technique | Notes |
+|-------------|--------|-----------|-------|
+| PR #1443 | hardik-bhadani-git | ByteJEPA | Non-record/notable submission |
+| PR #2058 | pranavxiyer | Adapter MLP | Non-record/notable submission |
+| PR #1388 | CiprianFlorin-Ifrim | XNOR-Net | Notable non-record |
+| PR #542 | ddavidgao | — | Archival |
+| PR #1106 | agalimova | MDLM Diffusion | Non-record |
 
-| PR | Author | Score | Status | Notes |
-|----|--------|-------|--------|-------|
-| #2161 | adiprathapa | — | Open | SP4096 QK4.5 budget reproduction candidate. No score. |
-| #2159 | visin109 | — | Open | SwiGLU gating + QAT + Residual Attention Scaling. No score. |
-| #2158 | izlley | — | Open | PR #2135 + MP3 marker-pair fusion. No score. |
-| #2157 | vimeto | 1.06043 | Draft | PR #1797 + AWQ-lite top3 + LQER 60k. Post-deadline non-record. |
-| #2155 | divagr18 | — | Open | SP8192 + Mamba3 SSM hybrid. Non-record. |
-| **#2153** | rixhavraj | **0.9627** | Open | ⚠️ **Likely BPB bug** — "36-hour optimization," no artifact, informal commits ("model improved", "updte02"), no methodology, no reviews. Score gap vs SOTA is 0.099 bpb with no architectural justification. |
-| #2138 | anmarhindi | ~~0.979~~ → **1.067** | Open | **CONFIRMED BPB BUG (#7)**: divided by CaseOps-transformed bytes (164,594,398) not raw-text sidecar (151,074,309). Corrected score 1.067219 — worse than SOTA. |
-
-**PR #2138 is the 7th confirmed BPB bug in this competition.** Pattern: extraordinary score claim → community review → byte-denominator manipulation identified.
+No new leaderboard records since PR #2146 merged May 1. Competition fully closed.
 
 ## New Research Papers (May 8 scan)
 
-No papers found that haven't already been documented in prior entries. Papers confirmed present in search but already tracked:
+No new papers found beyond those already tracked in the May 4–5 entries. The looped transformer cluster (arXiv:2604.21106, 2604.21254, 2604.11791, 2604.15259) remains the highest-priority unread backlog. No new 2026 papers found on n-gram/neural interpolation or score-first TTT.
 
-| Paper | arXiv | Status |
-|-------|-------|--------|
-| LaCT (Test-Time Training Done Right) | 2505.23884 | Already tracked (May 4 entry) |
-| Test-Time Learning for LLMs | 2505.20633 | Already tracked (May 5 entry) |
-| Hyperloop Transformers | 2604.21254 | Already tracked (May 4 entry) |
-| pQuant decoupled linear QAT | 2602.22592 | Already tracked (May 7 entry) |
+Papers confirmed already tracked (no new entries needed):
+- LaCT (2505.23884): Large-chunk TTT — Doc-TTT in PR #1560 is this
+- In-Place TTT NTP-aligned (2604.06169): Pending read — HIGH priority for future TTT design
+- Hyperloop Transformers (2604.21254): Hyper-connections for looped models — HIGH for future architecture
+- Iso-Depth Scaling Laws (2604.21106): Quantitative guidance for loop depth tuning — HIGH
+- Bell Box Quantization (2603.01599): ITO quantization, may replace GPTQ/LQER — HIGH
+- EntroLLM (2505.02380): Entropy coding for 16MB artifact compression — HIGH
+- AsymLogit Rescale (from PR #1923/#2130): ~5 lines, ~0.002 bpb gain — add to future checklist
 
 **Two papers not previously logged** (low competition relevance, noted for completeness):
 
