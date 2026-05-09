@@ -118,8 +118,10 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 **Our status**: PR #771 REJECTED (train-then-score TTT violation). No submission. No placement.
 
-**Key post-competition findings (May 1–5)**:
+**Key post-competition findings (May 1–9)**:
 - **PR #2146 MERGED (May 1)**: Audit complete. 4 grace-policy PRs accepted (#1945, #1953, #2014, #2135). PR #2130 rejected for docs 10k–49k train/val overlap. New official SOTA: 1.05651.
+- **⚠️ THREE NEW ORGANIZER CODEX BRANCHES (May 9 — UNMERGED)**: `codex/update-parameter-golf-leaderboard-p025-worktree`, `codex/update-readme-leaderboard-merged-records`, `codex/update-readme-format-blocked-leaders` all appeared on `git fetch upstream`. The p025-worktree branch removes ALL CaseOps-based records (1.05651 to 1.0678) and the grace-policy rows, adds PR #1784 (renqianluo, 1.0708) and PR #1518 (abaybektursun, 1.0739). If merged, official SOTA reverts to **1.0708**. NOT merged to main — monitor daily.
+- **PR #1784 (renqianluo, 1.0708)**: Previously untracked. GatedAttn + Alpha-Scaled LoRA + Warm-Start A + WD=1.0. Appearing in organizer branch as a valid non-CaseOps record. Watch for main merge.
 - **AsymLogit Rescale** (PR #1923/#2130): Two trainable scalars replace fixed logit_softcap. ~5 lines. Appears in V22 stack (PR #1945, 1.05943). Zero legality risk. First-add for future competition.
 - **GPTQ calibration batches**: 16→32 gives ~0.001 bpb. Free win at submission time. Contributed to PR #2135 beating PR #2130.
 - **Data overlap bug**: PR #2130 (1.05670) excluded by audit for docs 10,000–49,999 train/val overlap. Verify validation isolation explicitly before filing any future submission.
