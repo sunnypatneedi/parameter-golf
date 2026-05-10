@@ -1,3 +1,79 @@
+# Parameter Golf Daily Research - 2026-05-10 (POST-COMPETITION DAY 10)
+
+## Competition Status: CLOSED (Apr 30, 2026)
+Audit COMPLETE — PR #2146 merged May 1. **Current official SOTA: 1.05651** (codemath3000, PR #2135).
+
+## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
+
+No change. @valerio-oai ruling: train-then-score AdamW TTT 30ep on val tokens = illegal. Score 1.0705 void.
+
+## N-Gram PR Status — Final
+
+| PR | Score | Status |
+|----|-------|--------|
+| #727 | 0.9674 | **CLOSED** — @valerio-oai: hash key includes target token. |
+| #758 | 1.0465 | **OPEN/dead** — same XOR target-token violation flagged by MatoTeziTanka. No organizer response. |
+| #731 | 1.0400 | **OPEN/stale** — reviewer said “LOOKS CLEAN” but seeds 1337+2024 never filed. Competition closed. |
+
+## Leaderboard
+
+No change from May 9. Last upstream/main commit: `f5c0793` (May 1). Three organizer codex branches still **unmerged**.
+
+| Rank | Score | Author | PR |
+|------|-------|--------|-----|
+| 1 | **1.05651** | codemath3000 | #2135 (grace) |
+| 2 | 1.05759 | simonbissonnette | #2014 (grace) |
+| 3 | 1.05855 | andrewbaggio1 | #1953 (grace) |
+| 4 | 1.05943 | alertcat | #1945 (grace) |
+| 5 | 1.0611 | codemath3000 | #1855 |
+| 6 | 1.0614 | aquariouseworkman | #1851/#1868 |
+
+If `codex/update-parameter-golf-leaderboard-p025-worktree` merges: all CaseOps entries revoked, SOTA reverts to **1.0708** (PR #1784, renqianluo).
+
+## What Changed (GitHub — since May 9)
+
+**Upstream main**: No new merges. Status unchanged.
+
+**Organizer codex branches**: All three branches (`p025-worktree`, `leaderboard-merged-records`, `format-blocked-leaders`) still unmerged to main. No new commits on these branches detected.
+
+**Post-competition PRs — new details on PR #2163** (NEFTune + Z-Loss + Phased-TTT, 1.06035 BPB):
+- NEFTune: noise scaled `alpha/sqrt(seq_len*dim)`, alpha=5.0, gated off during TTT eval
+- Z-loss: weight 1e-4 on `mean(LSE²)`, applied via fused Triton kernel at no extra compute cost
+- Phased-TTT: LoRA rank 80→128, prefix 2500→3000 docs, phases 3→4; timing ~510s within 600s budget
+- Status: open, **no organizer comment**. Post-competition non-record reference only.
+
+**PR #2157** (May 5, vimeto): PR #1797 + AWQ-lite top3 + LQER 60k → 1.06043 val_bpb (seed=0 only, not 3-seed). Draft, post-deadline non-record.
+
+## New Research Papers (May 10 scan)
+
+| Paper | arXiv | Date | Relevance to Parameter Golf |
+|-------|-------|------|-----------------------------|
+| Test-Time Learning for Large Language Models (TLM) | 2505.20633 | May 2025 | TTL via unlabeled test perplexity minimization — domain adaptation without labels. Low direct relevance: does not operate score-first at token level; more suited to few-shot domain shift than per-token BPB optimization. |
+| Fast Spatial Memory with Elastic Test-Time Training | 2604.07350 | Apr 2026 | Elastic TTT with spatial memory cache. Not previously tracked. Elastic chunking strategy for TTT could improve our phased TTT by adaptively adjusting chunk sizes based on perplexity signal. Implementation complexity: medium. Legality unclear without reviewing score-first compliance. |
+| NGPU-LM: GPU-Accelerated N-Gram LM for Context-Biasing | 2505.22857 | May 2026 | GPU-parallel n-gram inference for ASR decoding. Directly relevant to n-gram mixer implementation: parallelized n-gram lookup on GPU avoids CPU bottleneck that made prior n-gram approaches eval-time infeasible within 600s budget. Reference implementation for future n-gram competitions. |
+| LaCT: Test-Time Training Done Right | 2505.23884 | May 2025 | Already tracked. Large Chunk TTT (2K-1M tokens), 70% GPU util on A100. PR #1560 Doc-TTT is LaCT-style. |
+
+**No new breakthrough papers** applicable to the closed competition. NGPU-LM (2505.22857) is the only newly discovered paper with direct applicability to future n-gram mixer work.
+
+## Status Summary
+
+| Item | Status |
+|------|--------|
+| Competition | **CLOSED** Apr 30, 2026 |
+| Official SOTA | **1.05651** (PR #2135) — unchanged since May 1 |
+| Organizer Codex branches | 3 unmerged — CaseOps revocation risk ongoing |
+| If p025-worktree merges | SOTA reverts to **1.0708** (PR #1784, renqianluo) |
+| Our submission | REJECTED (PR #771, train-then-score) |
+| Notable post-competition PR | #2163 (NEFTune+Z-Loss+Phased-TTT, 1.06035, no organizer comment) |
+
+## Recommended Action
+
+1. **Monitor `upstream/main` daily** for the p025-worktree branch merge. This is the only outstanding event that changes the competition record.
+2. **File NGPU-LM (arXiv:2505.22857)** in the technique table as a future-competition reference for GPU-parallel n-gram implementation.
+3. **No GPU spend required.** Competition is closed. All active monitoring is passive.
+
+---
+
 # Parameter Golf Daily Research - 2026-05-09 (POST-COMPETITION DAY 9)
 
 ## Competition Status: CLOSED (Apr 30, 2026)
@@ -90,7 +166,7 @@ Last commit on upstream/main: `f5c0793 Update leaderboard with May 1 audited row
 ## New Research Papers (May 9 scan)
 
 | Paper | arXiv | Date | Key Technique | Relevance |
-|-------|-------|------|---------------|-----------|
+|-------|-------|------|---------------|----------|
 | Frequency-Ordered Tokenization for Better Text Compression | 2602.22958 | Feb 2026 | Reorders subword tokens by frequency to improve compression ratio via Zipf's law exploitation. Simple preprocessing. | MEDIUM — for next competition: applying frequency ordering to SP8192 vocab before compression could improve lrzip artifact size slightly. Zero legality risk. |
 | zip2zip: Inference-Time Adaptive Tokenization | 2506.01084 | Oct 2025 | Online bijective tokenization at inference; proves bijective transforms preserve entropy. | LOW — post-cutoff, supports CaseOps correctness argument theoretically. |
 
