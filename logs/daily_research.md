@@ -1,3 +1,92 @@
+# Parameter Golf Daily Research - 2026-05-14 (POST-COMPETITION DAY 14)
+
+## Competition Status: CLOSED (Apr 30, 2026)
+Audit COMPLETE — PR #2146 merged May 1. **Current official SOTA: 1.05651** (codemath3000, PR #2135).
+
+## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
+
+No change. @valerio-oai ruling: train-then-score AdamW TTT 30ep on val tokens = illegal. Score 1.0705 void.
+
+## N-Gram PR Status — Final
+
+| PR | Score | Status |
+|----|-------|--------|
+| #727 | 0.9674 | **CLOSED** — @valerio-oai: hash key includes target token. |
+| #758 | 1.0465 | **OPEN/dead** — same XOR target-token violation flagged by MatoTeziTanka. No organizer response. |
+| #731 | 1.0400 | **OPEN/stale** — reviewer said "LOOKS CLEAN" but seeds 1337+2024 never filed. Competition closed. |
+
+## Leaderboard
+
+Last upstream/main commit: `f5c0793` (May 4 — 10 days ago). No new merges.
+
+| Rank | Score | Author | PR |
+|------|-------|--------|-----|
+| 1 | **1.05651** | codemath3000 | #2135 (grace) |
+| 2 | 1.05759 | simonbissonnette | #2014 (grace) |
+| 3 | 1.05855 | andrewbaggio1 | #1953 (grace) |
+| 4 | 1.05943 | alertcat | #1945 (grace) |
+| 5 | 1.0611 | codemath3000 | #1855 |
+| 6 | 1.0614 | aquariouseworkman | #1851/#1868 |
+
+If `codex/update-parameter-golf-leaderboard-p025-worktree` or `codex/update-readme-format-blocked-leaders` merges: all CaseOps entries revoked, SOTA reverts to **1.0708** (PR #1784, renqianluo: GatedAttn + Alpha-Scaled LoRA + Warm-Start A + WD=1.0).
+
+If `codex/update-readme-leaderboard-merged-records` merges: all records back to 1.0810 removed, SOTA reverts to **1.0810** (bigbag, PR #1493).
+
+## What Changed (GitHub — since May 10)
+
+**Upstream main**: No new merges since May 4. 10-day silence confirmed.
+
+**Codex branches — 5 additional branches found beyond the 3 tracked in May 10**:
+
+| Branch | Description | Impact if Merged |
+|--------|-------------|-----------------|
+| `update-parameter-golf-leaderboard-p025-worktree` | Removes CaseOps + grace-policy records; adds PR #1784 (1.0708) + PR #1518 (1.0739) | SOTA → 1.0708 |
+| `update-readme-format-blocked-leaders` | Same as p025-worktree (identical diff) | SOTA → 1.0708 |
+| `update-readme-leaderboard-merged-records` | Wipes entire post-April-9 competitive table | SOTA → 1.0810 |
+| `update-leaderboard-20260502` ⭐ NEW | Only removes non-record section entries; record table unchanged | No SOTA change |
+| `update-parameter-golf-leaderboard-p025` | Old branch; p025-worktree is its refined successor | Superseded |
+| `update-april-leaderboard-readme` | Very old (April 9); predates CaseOps records | Stale |
+| `parameter-golf-11l-sdpa` | Very old; contains yufengli 1.1189 (4ep TTT, never merged) | Stale |
+
+**PR #1784 confirmed** (renqianluo, 1.0708): Stack = GatedAttn + Alpha-Scaled LoRA (alpha=144) + Warm-Start A + WD=1.0. This is the top record in the CaseOps-stripping branches. No legality flags.
+
+**yufengli 1.1189** (from `parameter-golf-11l-sdpa`): "LeakyReLU² + 4ep Legal TTT" filed 2026-03-28. Not in main — likely blocked because 4ep exceeds ≤3ep threshold. Competition closed; not actionable.
+
+**No new open PRs**: Competition is quiet. No participant activity since May 4.
+
+## New Research Papers
+
+| Paper | arXiv | Date | Technique | Competition Relevance |
+|-------|-------|------|-----------|----------------------|
+| **NuMuon: Nuclear-Norm Constrained Muon** | 2603.03597 | Mar 2026 | Adds nuclear-norm constraint to Muon NS step; weights 55.9% more compressible under GPTQ | **High** — directly reduces post-quant val_bpb gap; drop-in Muon swap; zero legality risk. **First-add for future competition.** |
+| **MELT (Memory-Efficient Looped Transformer)** | 2605.07721 | May 8, 2026 | Shared KV-cache per layer across loops via learnable gating; enables 4th-5th loop at same memory | **Low-Moderate** — complex architectural change + two-phase training; may not fit 10-min constraint. New, not previously tracked. |
+| In-Place TTT (NTP-aligned loss) | 2604.06169 | Apr 2026 | NTP-aligned TTT loss; chunk-wise score-first compatible | **Moderate** — stronger TTT quality; ~20-50 lines; already in Session 15 lessons. |
+| Solve the Loop: Attractor Models | 2605.12466 | May 2026 | Looped transformer layers converge to fixed points per iteration | **Low** — theoretical backing for outer normalization; reinforces arXiv:2604.15259. |
+| Practical Efficiency of Muon | 2505.02222 | May 2026 | Muon needs 10-15% fewer tokens than AdamW; advantage grows with batch size | **Reference only** — confirms optimizer choice; no new technique. |
+
+**Top actionable finding**: **NuMuon** (2603.03597). Nuclear-norm constraint on Muon's NS update step makes the trained weight matrices inherently more low-rank, improving post-GPTQ BPB by reducing quantization degradation. 55.9% compression improvement reported. Drop-in swap, zero legality risk, ~10-20 lines to implement. No one appears to have tried this in the competition. **Add to CLAUDE.md technique table.**
+
+## Status Summary
+
+| Item | Status |
+|------|--------|
+| Competition | **CLOSED** Apr 30, 2026 |
+| Official SOTA | **1.05651** (PR #2135) — unchanged since May 1 |
+| Days since last main commit | **10** (May 4) |
+| Days since CaseOps branches appeared | **5** (May 9) — 3 still unmerged |
+| Active CaseOps-stripping branches | p025-worktree + format-blocked-leaders: SOTA → 1.0708 if either merges |
+| Conservative reset branch | leaderboard-merged-records: SOTA → 1.0810 if merges |
+| Our submission | REJECTED (PR #771, train-then-score) |
+
+## Recommended Action
+
+1. **Monitor `upstream/main` daily** for branch merge. The p025-worktree / format-blocked-leaders merge would revert SOTA to 1.0708; the leaderboard-merged-records would revert to 1.0810.
+2. **Add NuMuon to CLAUDE.md technique table** as first-add for any future competition: arXiv:2603.03597, nuclear-norm Muon, expected ~-0.003 to -0.008 bpb via better GPTQ compression.
+3. **Add MELT (arXiv:2605.07721)** to CLAUDE.md WATCH list for looped architecture improvements.
+4. **No GPU spend required.** Competition closed. All monitoring is passive.
+
+---
+
 # Parameter Golf Daily Research - 2026-05-10 (POST-COMPETITION DAY 10)
 
 ## Competition Status: CLOSED (Apr 30, 2026)
