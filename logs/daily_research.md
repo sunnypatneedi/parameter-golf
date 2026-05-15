@@ -1,3 +1,88 @@
+# Parameter Golf Daily Research - 2026-05-15 (POST-COMPETITION DAY 15)
+
+## Competition Status: CLOSED (Apr 30, 2026)
+Audit COMPLETE — PR #2146 merged May 4. **Current official SOTA: 1.05651** (codemath3000, PR #2135).
+
+## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
+
+No change. @valerio-oai ruling: train-then-score AdamW TTT 30ep on val tokens = illegal. Score 1.0705 void. No new comments.
+
+## N-Gram PR Status — Final
+
+| PR | Score | Status |
+|----|-------|--------|
+| #727 | 0.9674 | **CLOSED** — @valerio-oai: hash key includes target token. |
+| #758 | 1.0465 | **OPEN/dead** — XOR hash target-token violation flagged (MatoTeziTanka). No organizer response. |
+| #731 | 1.0400 | **OPEN/stale** — reviewer "LOOKS CLEAN" but seeds 1337+2024 never filed. Competition closed. |
+
+## Leaderboard
+
+Last upstream/main commit: `f5c0793` (May 4 — 11 days ago). No new merges.
+
+| Rank | Score | Author | PR |
+|------|-------|--------|-----|
+| 1 | **1.05651** | codemath3000 | #2135 (grace) |
+| 2 | 1.05759 | simonbissonnette | #2014 (grace) |
+| 3 | 1.05855 | andrewbaggio1 | #1953 (grace) |
+| 4 | 1.05943 | alertcat | #1945 (grace) |
+| 5 | 1.0611 | codemath3000 | #1855 |
+| 6 | 1.0614 | aquariouseworkman | #1851/#1868 |
+| 7 | 1.0634 | nprime06 | #1787 |
+| 8 | 1.0645 | dexhunter | #1769 |
+| 9 | 1.0655 | dexhunter | #1736 |
+| 10 | 1.0678 | romeerp | #1729 |
+
+## Organizer Codex Branches — EFFECTIVELY ABANDONED
+
+All three CaseOps-stripping branches remain unmerged. Last commit dates confirm no activity in 17–19 days:
+
+| Branch | Last Commit | Impact if Merged |
+|--------|------------|-----------------|
+| `update-parameter-golf-leaderboard-p025-worktree` | **2026-04-28** (17 days ago) | SOTA → 1.0708 (PR #1784, renqianluo) |
+| `update-readme-format-blocked-leaders` | **2026-04-26** (19 days ago) | SOTA → 1.0708 (PR #1784, renqianluo) |
+| `update-readme-leaderboard-merged-records` | **2026-03-23** (ancient, predates CaseOps) | SOTA → 1.0810 if merged |
+
+**Assessment**: Branches are stale. OpenAI's last main commit (May 4) post-dates all three branches, and maintainers chose not to merge them during the audit. Official SOTA **1.05651 is now locked**. The grace-policy and CaseOps records appear settled.
+
+## What Changed (GitHub — since May 14)
+
+**Upstream main**: No new commits since May 4. 11-day silence.
+
+**New post-competition open PRs**:
+- **PR #2163** (OPEN, May 7): NEFTune (alpha=5.0, disabled during TTT) + Z-Loss (weight 1e-4) + Phased-TTT (4 phases, LoRA rank-128, 3000-doc prefix). Score: **1.06035** (3-seed). Clean techniques, no reviews yet. Does not beat SOTA (1.05651) nor the 0.005 threshold. No action needed.
+- **PR #2144** (OPEN, ~May 1-2): Claims 0.9697 BPB pre-quantization. No artifact, no methodology details. High BPB-bug risk — do not track.
+- **PR #2139** (CLOSED, May 2): TTT Peer-LoRA Ensemble on PR #2014, 1.05749 BPB. Self-closed; non-competitive vs PR #2135.
+
+**No new merges to main. Competition repo effectively frozen.**
+
+## New Research Papers
+
+| Paper | arXiv | Date | Relevance |
+|-------|-------|------|-----------|
+| **Proxy Compression for LM** | 2602.04289 | Feb 2026 | Train LM jointly on compressed + raw sequences; discard compressor at inference. Strong cross-representation transfer (~90% compressed training → good raw-byte inference). Not applicable to our artifact-constrained setting (we need full model weights in 16MB, not a byte-level model). |
+| **Statistically-Lossless Quantization** | 2605.02404 | May 2026 | Achieves <4 bits/param with task-lossless compression (3.3-bit distribution-lossless). Could reduce artifact size further in a future competition. **Low priority** — our artifact used lrzip + GPTQ already; marginal gains. |
+| **NGPU-LM: GPU-Accelerated N-Gram LM** | 2505.22857 | May 2026 | Rethinks n-gram data structures for GPU-parallel inference. Reduces n-gram scoring latency. Interesting if PPM-D is ever ruled legal; not actionable now. |
+
+No new papers in the test-time training or looped transformer space since May 14.
+
+## Status Summary
+
+| Item | Status |
+|------|--------|
+| Competition | **CLOSED** Apr 30, 2026 |
+| Official SOTA | **1.05651** (PR #2135) — unchanged since May 4 |
+| Days since last main commit | **11** (May 4) |
+| Codex CaseOps-stripping branches | **ABANDONED** — 17-19 days idle, no activity |
+| Our submission | REJECTED (PR #771, train-then-score) |
+
+## Recommended Action
+
+1. **SOTA is locked at 1.05651.** The organizer codex branches that would revert to 1.0708 are abandoned. Update CLAUDE.md: remove the "Monitor daily" note about these branches.
+2. **No GPU spend warranted.** Competition is closed. All monitoring passive.
+3. **Future competition prep**: NuMuon (arXiv:2603.03597), AsymLogit Rescale, GPTQ_CALIBRATION_BATCHES=32, and phased LoRA TTT are the highest-EV first-adds for any follow-on challenge.
+
+---
+
 # Parameter Golf Daily Research - 2026-05-14 (POST-COMPETITION DAY 14)
 
 ## Competition Status: CLOSED (Apr 30, 2026)

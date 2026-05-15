@@ -120,7 +120,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 **Key post-competition findings (May 1–9)**:
 - **PR #2146 MERGED (May 1)**: Audit complete. 4 grace-policy PRs accepted (#1945, #1953, #2014, #2135). PR #2130 rejected for docs 10k–49k train/val overlap. New official SOTA: 1.05651.
-- **⚠️ ORGANIZER CODEX BRANCHES (May 9 — STILL UNMERGED as of May 14)**: 8 codex branches now exist on upstream. Active ones: `codex/update-parameter-golf-leaderboard-p025-worktree` and `codex/update-readme-format-blocked-leaders` both remove ALL CaseOps-based records (1.05651 to 1.0678) + grace-policy rows, and add PR #1784 (renqianluo, 1.0708) + PR #1518 (abaybektursun, 1.0739). `codex/update-readme-leaderboard-merged-records` is more aggressive — wipes all records back to 1.0810. `codex/update-leaderboard-20260502` only cleans up non-record section (no SOTA impact). None merged to main after 5 days. If p025-worktree or format-blocked-leaders merges, official SOTA reverts to **1.0708**. Monitor daily.
+- **ORGANIZER CODEX BRANCHES — EFFECTIVELY ABANDONED (confirmed May 15)**: All CaseOps-stripping branches have been idle 17–19 days (last commits April 26–28). OpenAI's last main commit (May 4, PR #2146 audit) post-dates all three branches and chose not to merge them. `p025-worktree` and `format-blocked-leaders` would have reverted SOTA to 1.0708; `leaderboard-merged-records` would have reverted to 1.0810. None merged. **Official SOTA 1.05651 is now locked. No further monitoring required.**
 - **PR #1784 (renqianluo, 1.0708)**: Previously untracked. GatedAttn + Alpha-Scaled LoRA + Warm-Start A + WD=1.0. Appearing in organizer branch as a valid non-CaseOps record. Watch for main merge.
 - **AsymLogit Rescale** (PR #1923/#2130): Two trainable scalars replace fixed logit_softcap. ~5 lines. Appears in V22 stack (PR #1945, 1.05943). Zero legality risk. First-add for future competition.
 - **GPTQ calibration batches**: 16→32 gives ~0.001 bpb. Free win at submission time. Contributed to PR #2135 beating PR #2130.
@@ -128,6 +128,9 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 - **PR #2138 BPB bug**: 7th BPB bug in competition. Divided by CaseOps-transformed bytes instead of raw sidecar. Corrected 0.979 → 1.067. Always verify denominator against raw-text bytes.
 - **PPM-D (Issue #1872)**: No organizer ruling as of May 5. Competition ended unresolved.
 - **PR #2153 (rixhavraj, 0.9627)**: Likely BPB bug — no artifact, informal commits, "36-hour optimization cycle" with no methodology. Do not track.
+- **PR #2163 (OPEN, May 7)**: NEFTune (alpha=5.0, disabled during TTT) + Z-Loss (weight 1e-4) + Phased-TTT (LoRA rank-128, 4 phases, 3000-doc prefix). Score 1.06035 (3-seed). No reviews. Does not beat SOTA. Clean techniques; NEFTune + Z-Loss are new post-competition additions not previously tracked.
+- **Statistically-Lossless Quantization (arXiv:2605.02404, May 2026)**: <4 bits/param task-lossless compression (3.3-bit). Potential artifact size reduction for future competitions beyond current GPTQ int6/lrzip stack.
+- **NGPU-LM (arXiv:2505.22857, May 2026)**: GPU-parallel n-gram LM data structures. Relevant if PPM-D is ever ruled legal; reduces n-gram scoring latency significantly.
 
 **Previous target**: ≤1.0561 (beat by 0.005 nats). Now moot — competition closed.
 
