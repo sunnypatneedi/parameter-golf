@@ -1,3 +1,93 @@
+# Parameter Golf Daily Research - 2026-05-16 (POST-COMPETITION DAY 16)
+
+## Competition Status: CLOSED (Apr 30, 2026)
+Audit COMPLETE — PR #2146 merged May 1. **Current official SOTA: 1.05651** (codemath3000, PR #2135).
+
+## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
+
+No change. @valerio-oai ruling: train-then-score AdamW TTT 30ep on val tokens = illegal. Score 1.0705 void. No new comments.
+
+## N-Gram PR Status — Final
+
+| PR | Score | Status |
+|----|-------|--------|
+| #727 | 0.9674 | **CLOSED** — @valerio-oai: hash key includes target token. |
+| #758 | 1.0465 | **OPEN/dead** — XOR hash target-token violation (MatoTeziTanka). No organizer response. |
+| #731 | 1.0400 | **OPEN/stale** — reviewer "LOOKS CLEAN" but seeds 1337+2024 never filed. Competition closed. |
+
+## Leaderboard
+
+Last upstream/main commit: `f5c0793` (May 4 — **12 days ago**). No new merges.
+
+| Rank | Score | Author | PR |
+|------|-------|--------|-----|
+| 1 | **1.05651** | codemath3000 | #2135 (grace) |
+| 2 | 1.05759 | simonbissonnette | #2014 (grace) |
+| 3 | 1.05855 | andrewbaggio1 | #1953 (grace) |
+| 4 | 1.05943 | alertcat | #1945 (grace) |
+| 5 | 1.0611 | codemath3000 | #1855 |
+| 6 | 1.0614 | aquariouseworkman | #1851/#1868 |
+| 7 | 1.0634 | nprime06 | #1787 |
+| 8 | 1.0645 | dexhunter | #1769 |
+| 9 | 1.0655 | dexhunter | #1736 |
+| 10 | 1.0678 | romeerp | #1729 |
+
+## Organizer Codex Branches — CONFIRMED ABANDONED
+
+Per CLAUDE.md update (May 15): all three CaseOps-stripping branches idle 18–20 days. No merge in 12 days since last main commit confirms OpenAI is not pursuing reversion. Official SOTA 1.05651 is locked.
+
+| Branch | Last Commit | Impact if Merged |
+|--------|------------|-----------------|
+| `update-parameter-golf-leaderboard-p025-worktree` | 2026-04-28 | SOTA → 1.0708 |
+| `update-readme-format-blocked-leaders` | 2026-04-26 | SOTA → 1.0708 |
+| `update-readme-leaderboard-merged-records` | 2026-03-23 | SOTA → 1.0810 |
+
+**No further monitoring required.**
+
+## What Changed (GitHub — since May 15)
+
+**Upstream main**: No new commits. 12-day silence.
+
+**Open post-competition PRs (no change from yesterday):**
+- **PR #2163** (OPEN, uniagent-alpha, 1.06035, 3-seed std 0.00044): NEFTune alpha=5.0 + Z-Loss weight=1e-4 + Phased-TTT (LoRA rank-128, 4 phases, 3000-doc prefix). Eval time ~508.7s, artifact 15.8–15.9 MB. No reviews. Does not beat SOTA. Clean techniques (NEFTune and Z-Loss are new post-competition additions not previously in any record PR). Zero legality risk but also no path to SOTA improvement without the other competition-winning layers.
+- **PR #2157** (DRAFT, vimeto, 1.06043): PR #1797 + AWQ-lite top3 + LQER 60k. Non-competitive.
+- **PR #2140** (OPEN, simon-marcus, 1.0570): PR #2014 stack + LeakyReLU 0.3. Non-competitive.
+- **PR #2144** (OPEN, simonbissonnette, 0.9697 pre-quant): "Progressive context growth precursor" — no 16MB artifact, no compressed packaging (SKIP_FINAL_PACKAGING=1). Explicitly non-record archival. Not comparable to leaderboard scores.
+
+**No new merges. No new competitive PRs.**
+
+## New Research Papers
+
+No new papers since yesterday's scan. Carrying forward the active tracking list:
+
+| Paper | arXiv | Date | Relevance |
+|-------|-------|------|-----------|
+| Statistically-Lossless Quantization | 2605.02404 | May 2026 | <4 bits/param task-lossless (3.3-bit). Future artifact size reduction. Low priority now. |
+| NGPU-LM: GPU-Parallel N-Gram LM | 2505.22857 | May 2026 | GPU-parallel n-gram scoring. Relevant if PPM-D ever ruled legal in future challenge. |
+| Newton-Muon Optimizer | 2604.01472 | Apr 2026 | +6% fewer steps, -4% wall-clock vs Muon. Drop-in swap. First-add for any future challenge. |
+| Polar Express Newton-Schulz | 2505.16932 | ICLR 2026 | Already in competition SOTA (PR #1787). Adaptive NS coefficients beat fixed 5-step. |
+| LaCT: Large Chunk TTT | 2505.23884 | May 2025 | Already tracked. Phased-TTT in SOTA uses LaCT-style chunking. |
+| pQuant: Decoupled Linear QAT | 2602.22592 | Feb 2026 | 1-bit main branch + high-precision branch. Future GPTQ improvement candidate. |
+| Practical Efficiency of Muon | 2505.02222 | May 2026 | Empirical scaling analysis of Muon for pretraining. Confirms Muon momentum 0.97 + lower MATRIX_LR pairing. |
+
+## Status Summary
+
+| Item | Status |
+|------|--------|
+| Competition | **CLOSED** Apr 30, 2026 |
+| Official SOTA | **1.05651** (PR #2135) — unchanged 12 days |
+| Days since last main commit | **12** (May 4) |
+| Codex CaseOps-stripping branches | **ABANDONED** — 18-20 days idle |
+| Our submission | REJECTED (PR #771, train-then-score) |
+
+## Recommended Action
+
+1. **No monitoring changes needed.** SOTA is locked. Codex branches confirmed abandoned per CLAUDE.md update yesterday — remove daily tracking.
+2. **PR #2163 NEFTune + Z-Loss** are worth noting for future competition reference: clean regularization techniques (NEFTune during training gated off at TTT, Z-Loss on fused softcap CE kernel) that have never appeared in any record PR. Zero legality risk. Add to technique table if a follow-on challenge launches.
+3. **No GPU spend warranted.** All monitoring passive.
+
+---
+
 # Parameter Golf Daily Research - 2026-05-15 (POST-COMPETITION DAY 15)
 
 ## Competition Status: CLOSED (Apr 30, 2026)
