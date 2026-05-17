@@ -1,3 +1,100 @@
+# Parameter Golf Daily Research - 2026-05-17 (POST-COMPETITION DAY 17)
+
+## Competition Status: CLOSED (Apr 30, 2026)
+Audit COMPLETE — PR #2146 merged May 1. **Current official SOTA: 1.05651** (codemath3000, PR #2135).
+
+## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
+
+No change. @valerio-oai ruling: train-then-score AdamW TTT 30ep on val tokens = illegal. Score 1.0705 void.
+
+## N-Gram PR Status — Final
+
+| PR | Score | Status |
+|----|-------|--------|
+| #727 | 0.9674 | **CLOSED** — @valerio-oai: hash key includes target token. |
+| #758 | 1.0465 | **OPEN/dead** — XOR hash target-token violation (MatoTeziTanka). No organizer response. |
+| #731 | 1.0400 | **OPEN/stale** — reviewer "LOOKS CLEAN" but seeds 1337+2024 never filed. Competition closed. |
+
+## Leaderboard
+
+Last upstream/main commit: `f5c0793` (May 4 — **13 days ago**). No new merges.
+
+| Rank | Score | Author | PR |
+|------|-------|--------|-----|
+| 1 | **1.05651** | codemath3000 | #2135 (grace) |
+| 2 | 1.05759 | simonbissonnette | #2014 (grace) |
+| 3 | 1.05855 | andrewbaggio1 | #1953 (grace) |
+| 4 | 1.05943 | alertcat | #1945 (grace) |
+| 5 | 1.0611 | codemath3000 | #1855 |
+
+## Organizer Codex Branches — CONFIRMED ABANDONED (no change)
+
+All three CaseOps-stripping branches remain idle 19–21 days. No merge activity.
+
+| Branch | Last Commit | Impact if Merged |
+|--------|------------|-----------------|
+| `update-parameter-golf-leaderboard-p025-worktree` | 2026-04-28 | SOTA → 1.0708 |
+| `update-readme-format-blocked-leaders` | 2026-04-26 | SOTA → 1.0708 |
+| `update-readme-leaderboard-merged-records` | 2026-03-23 | SOTA → 1.0810 |
+
+## What Changed (GitHub — since May 16)
+
+**Upstream main**: No new commits. 13-day silence (longest post-competition gap yet).
+
+**New PRs since May 4:**
+
+| PR | Author | Score | Techniques | Verdict |
+|----|--------|-------|------------|---------|
+| #2163 (May 9) | uniagent-alpha | 1.06035 | NEFTune α=5.0 + Z-Loss 1e-4 + Phased-TTT rank-128 4-phase 3000-doc | Already tracked. Does not beat SOTA. No new reviews. |
+| #2161 (May 7) | adiprathapa | unknown | "SP4096 qk45 budget reproduction candidate" | Baseline reproduction, non-competitive. |
+| #2159 (May 6) | visin109 | ~1.599 | SwiGLU + QAT STE + Residual Attn Scaling + EMA + GQA + RoPE | Consumer GPU (not H100), non-competitive, non-record. |
+| #2158 (May 5) | izlley | unknown | "Non-record: PR #2135 + MP3 marker-pair fusion" | Explicitly non-record. |
+| #2157 (May 5) | vimeto | 1.06043 | PR #1797 + AWQ-lite top3 + LQER 60k (DRAFT) | Already tracked. Non-competitive. |
+| #2155 (May 4) | divagr18 | unknown | SP8192 Mamba3 SSM hybrid | Explicitly non-record. |
+
+**Summary**: No new competitive submissions. No merges. Repository in full post-competition wind-down.
+
+**Issue #1872 (PPM-D legality)**: Still no @valerio-oai response. Competition closed; ruling is now moot.
+
+## New Research Papers (May 2026 scan)
+
+No new papers found that are not already tracked in CLAUDE.md. Active tracking list unchanged:
+
+| Paper | arXiv | Date | Relevance |
+|-------|-------|------|-----------|
+| Statistically-Lossless Quantization | 2605.02404 | May 2026 | <4 bits/param task-lossless (3.3-bit). Future artifact budget. |
+| NGPU-LM: GPU-Parallel N-Gram LM | 2505.22857 | May 2026 | Parallel n-gram scoring; relevant if PPM-D ruled legal in future challenge. |
+| Newton-Muon Optimizer | 2604.01472 | Apr 2026 | +6% fewer steps, -4% wall-clock vs Muon. Drop-in swap for future challenge. |
+| Polar Express Newton-Schulz | 2505.16932 | ICLR 2026 | Already in competition SOTA (PR #1787). Adaptive NS coefficients. |
+| Practical Efficiency of Muon | 2505.02222 | May 2026 | Confirms Muon momentum 0.97 + lower MATRIX_LR pairing. |
+| NuMuon | 2603.03597 | Mar 2026 | Nuclear-norm constraint → 55.9% more GPTQ-compressible. First-add for future challenge. |
+| MELT | 2605.07721 | May 2026 | Memory-Efficient Looped Transformer; shared KV across loops. High complexity. |
+
+## Status Summary
+
+| Item | Status |
+|------|--------|
+| Competition | **CLOSED** Apr 30, 2026 |
+| Official SOTA | **1.05651** (PR #2135) — unchanged 13 days |
+| Days since last main commit | **13** (May 4) |
+| Codex CaseOps-stripping branches | **ABANDONED** — 19-21 days idle |
+| Open competitive PRs | **0** (all post-deadline PRs are non-competitive or non-record) |
+| Issue #1872 (PPM-D ruling) | **No ruling** — moot post-competition |
+| Our submission | REJECTED (PR #771, train-then-score) |
+
+## Recommended Action
+
+**No action required.** Competition is fully concluded with a frozen leaderboard. Repository activity has reduced to non-record experimental PRs only.
+
+**Future-challenge prep checklist (if a new similar competition opens):**
+1. Start from PR #2135 stack (CaseOps + LQER Asym + SparseAttnGate + SmearGate BOS-fix + AsymLogit Rescale + n-gram tilt ORDER=16 BOOST=2.625 + phased LoRA-TTT + GPTQ_CALIBRATION_BATCHES=32)
+2. Add Newton-Muon (arXiv:2604.01472) as Muon swap — +6% steps, zero risk
+3. Add NuMuon (arXiv:2603.03597) — better GPTQ compressibility
+4. Add AsymLogit Rescale (2 trainable scalars, ~5 lines, ~PR #1945)
+5. **Never** ship train-then-score TTT — always score first, then update
+
+---
+
 # Parameter Golf Daily Research - 2026-05-16 (POST-COMPETITION DAY 16)
 
 ## Competition Status: CLOSED (Apr 30, 2026)
