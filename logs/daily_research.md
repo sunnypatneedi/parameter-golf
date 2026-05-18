@@ -1,3 +1,97 @@
+# Parameter Golf Daily Research - 2026-05-18 (POST-COMPETITION DAY 18)
+
+## Competition Status: CLOSED (Apr 30, 2026)
+Audit COMPLETE — PR #2146 merged May 1. **Current official SOTA: 1.05651** (codemath3000, PR #2135).
+
+## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
+
+No change. @valerio-oai ruling: train-then-score AdamW TTT 30ep on val tokens = illegal. Score 1.0705 void.
+
+## N-Gram PR Status — Final
+
+| PR | Score | Status |
+|----|-------|--------|
+| #727 | 0.9674 | **CLOSED** — @valerio-oai: hash key includes target token (target-leaking). |
+| #758 | 1.0465 | **OPEN/dead** — XOR hash target-token violation confirmed by MatoTeziTanka. No organizer response. |
+| #731 | 1.0400 | **OPEN/stale** — reviewer "LOOKS CLEAN", seeds 1337+2024 never filed. Competition closed. |
+
+## Leaderboard
+
+Last upstream/main commit: `f5c0793` (May 4 — **14 days ago**). No new merges.
+
+| Rank | Score | Author | PR |
+|------|-------|--------|-----|
+| 1 | **1.05651** | codemath3000 | #2135 (grace) |
+| 2 | 1.05759 | simonbissonnette | #2014 (grace) |
+| 3 | 1.05855 | andrewbaggio1 | #1953 (grace) |
+| 4 | 1.05943 | alertcat | #1945 (grace) |
+| 5 | 1.0611 | codemath3000 | #1855 |
+
+## Organizer Codex Branches — CONFIRMED ABANDONED (no change)
+
+All three CaseOps-stripping branches remain idle 20–22 days. Official SOTA 1.05651 locked.
+
+## What Changed (GitHub — since May 17)
+
+**Upstream main**: No new commits. 14-day post-competition silence.
+
+**Open PRs (post-competition, non-competitive):**
+
+| PR | Author | Score | Techniques | Note |
+|----|--------|-------|------------|------|
+| #2163 (May 9) | uniagent-alpha | 1.06035 | NEFTune α=5.0 + Z-Loss 1e-4 + Phased-TTT rank-128 4-phase 3k-doc | No reviews. Does not beat SOTA. |
+| #2161 (May 7) | adiprathapa | unknown | SP4096 qk45 budget reproduction | Non-competitive baseline. |
+| #2159 (May 6) | visin109 | ~1.599 | SwiGLU + QAT + EMA + GQA | Consumer GPU, non-record. |
+| #2158 (May 5) | izlley | unknown | Non-record: PR #2135 + MP3 fusion | Explicitly non-record. |
+
+No new competitive submissions. Repository in full post-competition wind-down.
+
+## New Research Papers (May 18 scan)
+
+| Paper | arXiv | Date | Relevance | Impact Est. |
+|-------|-------|------|-----------|-------------|
+| **Intrinsic Muon (iMuon)** | 2605.09238 | May 10, 2026 | Muon variant on Riemannian manifolds; handles low-rank/orthogonal/SPD constraints intrinsically. More theoretically rigorous than standard Muon. Drop-in potential for LoRA parameters. | Unknown; theoretical. |
+| **Hyperloop Transformers** | 2604.21254 | Apr 2026 | Begin/middle/end block split; only middle block loops recurrently + hyper-connections on residual stream. **50% fewer params than depth-matched baseline, outperforms through GPTQ.** Directly relevant to our Triple Loop architecture — could enable deeper/more efficient loops at same artifact size. | High for future challenge. |
+| **Sparse Growing Transformer (SGT)** | 2603.23998 | Mar 2026 | Training-time progressive attention looping from deep→shallow; reduces recurrence FLOP overhead from 16–20% to 1–3%. Alternative to our fixed loop activation schedule. | Moderate; ~+steps. |
+| **SERQ** | 2603.08185 | Mar 2026 | Saliency-aware low-rank error reconstruction for W4A4/W4A8 quantization. Outperforms LQER and L2QER. Potential upgrade over LQER Asymmetric in SOTA stack. | ~−0.001 bpb (est.). |
+| **Statistically-Lossless Quantization** | 2605.02404 | May 2026 | Task-lossless at 3.3 bits/param (already tracked). | Future artifact budget. |
+
+**Previously tracked papers (no change):** NuMuon (2603.03597), NGPU-LM (2505.22857), Newton-Muon (2604.01472), Polar Express NS (2505.16932), MELT (2605.07721), LaCT (2505.23884).
+
+## Key Finding: Hyperloop Transformers (arXiv:2604.21254)
+
+This is the most actionable new architecture paper. Key properties:
+- Splits looped transformer into **begin block** (non-recurrent), **middle block** (recurrent N×), **end block** (non-recurrent)
+- Adds **hyper-connections** only at loop boundaries — minimal parameter cost
+- Achieves ~50% parameter reduction vs depth-matched transformer with equal or better loss
+- Explicitly tested for quality retention through post-training weight quantization
+- Directly maps to our PR #1493 Triple Loop (layers 4–5 repeated 3×) — restructuring as Hyperloop could free ~500KB artifact budget or allow a 4th loop iteration
+
+**Action**: For any future Parameter Golf challenge, implement Hyperloop architecture as the recurrence backbone instead of naive layer repetition. Estimated gain: more efficient parameter use → more room for quantization overhead.
+
+## Status Summary
+
+| Item | Status |
+|------|--------|
+| Competition | **CLOSED** Apr 30, 2026 |
+| Official SOTA | **1.05651** (PR #2135) — unchanged 14 days |
+| Days since last main commit | **14** (May 4) |
+| Codex CaseOps-stripping branches | **ABANDONED** — 20–22 days idle |
+| Open competitive PRs | **0** |
+| Issue #1872 (PPM-D ruling) | No ruling — moot |
+| Our submission | REJECTED (PR #771, train-then-score) |
+
+## Recommended Action
+
+**No action required.** Competition frozen. No new merges or rulings expected.
+
+**Future-challenge prep additions (new today):**
+- Add **Hyperloop Transformer** (arXiv:2604.21254) as recurrence backbone — 50% parameter savings at same depth. Stack on top of CaseOps + LQER + SmearGate BOS-fix stack.
+- Add **SERQ** (arXiv:2603.08185) as potential LQER Asymmetric upgrade — saliency-aware low-rank error reconstruction, W4A4/W4A8.
+- Add **iMuon** (arXiv:2605.09238) as Muon variant for LoRA parameters (low-rank manifold constraint). Theoretical; evaluate after standard optimizer is confirmed working.
+
+---
+
 # Parameter Golf Daily Research - 2026-05-17 (POST-COMPETITION DAY 17)
 
 ## Competition Status: CLOSED (Apr 30, 2026)
