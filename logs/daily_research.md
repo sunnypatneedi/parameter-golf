@@ -1,3 +1,92 @@
+# Parameter Golf Daily Research - 2026-05-19 (POST-COMPETITION DAY 19)
+
+## Competition Status: CLOSED (Apr 30, 2026)
+Audit COMPLETE — PR #2146 merged May 1. **Current official SOTA: 1.05651** (codemath3000, PR #2135).
+
+## PR #771 STATUS: CLOSED (REJECTED 2026-03-27) — Final
+
+No change. @valerio-oai ruling: train-then-score AdamW TTT 30ep on val tokens = illegal. Score 1.0705 void.
+
+## N-Gram PR Status — Final
+
+| PR | Score | Status |
+|----|-------|--------|
+| #727 | 0.9674 | **CLOSED** — hash key includes target token (target-leaking). |
+| #758 | 1.0465 | **OPEN/dead** — XOR hash target-token violation confirmed. No organizer response. |
+| #731 | 1.0400 | **OPEN/stale** — "LOOKS CLEAN" from reviewer, seeds 1337+2024 never filed. Moot. |
+
+## Leaderboard
+
+Last upstream/main commit: `f5c0793` (May 4 — **15 days ago**). No new merges.
+
+| Rank | Score | Author | PR |
+|------|-------|--------|-----|
+| 1 | **1.05651** | codemath3000 | #2135 (grace) |
+| 2 | 1.05759 | simonbissonnette | #2014 (grace) |
+| 3 | 1.05855 | andrewbaggio1 | #1953 (grace) |
+| 4 | 1.05943 | alertcat | #1945 (grace) |
+| 5 | 1.0611 | codemath3000 | #1855 |
+
+## Organizer Codex Branches — CONFIRMED ABANDONED (no change)
+
+All three CaseOps-stripping branches idle 21–23 days. Official SOTA 1.05651 locked.
+
+## What Changed (GitHub — since May 18)
+
+**Upstream main**: No new commits. 15-day post-competition silence.
+
+**New/updated open PRs observed:**
+
+| PR | Author | Score | Techniques | Note |
+|----|--------|-------|------------|------|
+| #2157 (draft) | unknown | 1.06043 | PR #1797 + AWQ-lite top3 + LQER 60k calibration | Draft, does not beat SOTA. |
+| #2153 | rixhavraj | 0.9627 | "36-hour optimization cycle", 12L 768d ~7.2M params | **BPB bug confirmed** — commit message flags "BPB-bug flagged". Do not track. |
+| #2163 | uniagent-alpha | 1.06035 | NEFTune α=5.0 + Z-Loss 1e-4 + Phased-TTT rank-128 4-phase 3k-doc | Already in log; no reviews. Does not beat SOTA. |
+| #2144 | unknown | 0.9697 | Non-record: progressive context growth | Explicitly non-record (no compute constraint). |
+
+No new competitive records. Repository in full post-competition wind-down.
+
+## New Research Papers (May 19 scan)
+
+| Paper | arXiv | Date | Relevance | Impact Est. |
+|-------|-------|------|-----------|-------------|
+| **SR-TTT: Surprisal-Aware Residual Test-Time Training** | 2603.06642 | Mar 2026 | TTT backbone + loss-gated sparse residual cache for high-surprisal tokens. Prevents catastrophic forgetting of unique/rare tokens that pure TTT fast-weights overwrite. Open-source impl available. Directly relevant to improving TTT quality in future challenges. | High for future challenge TTT design. |
+| **Self-Optimizing LMs (SOL)** | 2605.10875 | May 11, 2026 | Dynamic per-token attention sparsity + activation pruning + quantization bit-width via lightweight policy network. Reduces inference cost without retraining. Not applicable to our training-constrained setting, but relevant if future challenge adds inference budget. | Low (training-time challenge). |
+
+**Previously tracked (no change):** iMuon (2605.09238), Hyperloop Transformers (2604.21254), SERQ (2603.08185), Statistically-Lossless Quantization (2605.02404), NuMuon (2603.03597), Polar Express NS (2505.16932).
+
+## Key Finding: SR-TTT (arXiv:2603.06642)
+
+Standard TTT fast-weight models compress all context into hidden state, causing catastrophic forgetting of high-surprisal tokens (rare words, proper nouns, numbers). SR-TTT fixes this by:
+- Using the TTT inner-loop reconstruction loss as a surprisal signal
+- Routing tokens above a surprisal threshold to a sparse exact-attention Residual Cache
+- Keeping O(1) memory for low-entropy background, exact attention only for critical tokens
+
+**Relevance**: Our score-first LoRA TTT during eval (PR #1855 style) does not have this forgetting problem at small scale, but if TTT depth increases (>3ep, multiple phases), this mechanism becomes relevant. First-add for any future challenge with longer eval budgets.
+
+## Status Summary
+
+| Item | Status |
+|------|--------|
+| Competition | **CLOSED** Apr 30, 2026 |
+| Official SOTA | **1.05651** (PR #2135) — unchanged 15 days |
+| Days since last main commit | **15** (May 4) |
+| Codex CaseOps-stripping branches | **ABANDONED** — 21–23 days idle |
+| Open competitive PRs | **0** (PR #2157 draft does not beat SOTA) |
+| PR #2153 (0.9627) | **BPB bug confirmed** — do not track |
+| Issue #1872 (PPM-D ruling) | No ruling — moot |
+| Our submission | REJECTED (PR #771, train-then-score) |
+
+## Recommended Action
+
+**No action required.** Competition frozen. No new merges or rulings expected.
+
+**Future-challenge prep additions (new today):**
+- Add **SR-TTT** (arXiv:2603.06642) as TTT architecture upgrade — sparse residual cache for surprisal-gated exact attention on critical tokens. Stack on top of phased LoRA TTT.
+- PR #2157 (1.06043): AWQ-lite top3 + LQER 60k on PR #1797 base is clean and does not add novel techniques, but confirms LQER calibration count (60k vs default) is a tunable hyperparameter worth sweeping.
+
+---
+
 # Parameter Golf Daily Research - 2026-05-18 (POST-COMPETITION DAY 18)
 
 ## Competition Status: CLOSED (Apr 30, 2026)
